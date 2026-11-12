@@ -4,79 +4,93 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Stillpoint · Pomodoro Timer</title>
-<meta name="description" content="A calm, minimal pomodoro timer with ambient themes. Works on any device, no sign-in." />
-<meta name="theme-color" id="metaTheme" content="#12232e" />
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='42' fill='none' stroke='%239ad1e8' stroke-width='10'/%3E%3C/svg%3E" />
+<meta name="description" content="A calm, cinematic pomodoro timer with living ambient scenes. Works on any device, no sign-in." />
+<meta name="theme-color" id="metaTheme" content="#16222e" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='42' fill='none' stroke='%238fc3e8' stroke-width='10'/%3E%3C/svg%3E" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Outfit:wght@200;300;400;500;600&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="style.css" />
 </head>
-<body data-theme="ocean">
+<body data-scene="rain">
 
-  <!-- ambient animated background -->
+  <!-- living background: drifting gradient + particle canvas + vignette -->
   <div class="bg" aria-hidden="true">
-    <div class="orb orb-1"></div>
-    <div class="orb orb-2"></div>
-    <div class="orb orb-3"></div>
+    <canvas id="sceneCanvas"></canvas>
+    <div class="vignette"></div>
   </div>
 
   <!-- ================= SETUP SCREEN ================= -->
   <main id="setup" class="screen">
     <div class="card">
-      <h1 class="brand">stillpoint</h1>
-      <p class="tagline">a calm pomodoro timer</p>
+      <header class="head">
+        <h1 class="brand">stillpoint</h1>
+        <p class="tagline">find your focus, softly</p>
+      </header>
 
-      <div class="fields">
-        <div class="field">
-          <label for="focus">Focus</label>
-          <div class="stepper">
-            <button type="button" data-step="focus" data-dir="-1" aria-label="decrease focus time">&minus;</button>
-            <input id="focus" type="number" min="1" max="180" value="25" inputmode="numeric" />
-            <button type="button" data-step="focus" data-dir="1" aria-label="increase focus time">+</button>
+      <section class="sliders">
+        <div class="slider-row">
+          <div class="slider-head">
+            <label for="focus">Focus</label>
+            <output id="focusVal">25 min</output>
           </div>
-          <span class="unit">min</span>
+          <input type="range" id="focus" min="5" max="90" step="5" value="25" />
         </div>
 
-        <div class="field">
-          <label for="short">Short break</label>
-          <div class="stepper">
-            <button type="button" data-step="short" data-dir="-1" aria-label="decrease short break">&minus;</button>
-            <input id="short" type="number" min="1" max="60" value="5" inputmode="numeric" />
-            <button type="button" data-step="short" data-dir="1" aria-label="increase short break">+</button>
+        <div class="slider-row">
+          <div class="slider-head">
+            <label for="short">Short break</label>
+            <output id="shortVal">5 min</output>
           </div>
-          <span class="unit">min</span>
+          <input type="range" id="short" min="1" max="30" step="1" value="5" />
         </div>
 
-        <div class="field">
-          <label for="long">Long break</label>
-          <div class="stepper">
-            <button type="button" data-step="long" data-dir="-1" aria-label="decrease long break">&minus;</button>
-            <input id="long" type="number" min="1" max="120" value="15" inputmode="numeric" />
-            <button type="button" data-step="long" data-dir="1" aria-label="increase long break">+</button>
+        <div class="slider-row">
+          <div class="slider-head">
+            <label for="long">Long break</label>
+            <output id="longVal">15 min</output>
           </div>
-          <span class="unit">min</span>
+          <input type="range" id="long" min="5" max="60" step="5" value="15" />
         </div>
 
-        <div class="field">
-          <label for="sessions">Long break every</label>
-          <div class="stepper">
-            <button type="button" data-step="sessions" data-dir="-1" aria-label="decrease sessions per round">&minus;</button>
-            <input id="sessions" type="number" min="1" max="12" value="4" inputmode="numeric" />
-            <button type="button" data-step="sessions" data-dir="1" aria-label="increase sessions per round">+</button>
+        <div class="slider-row">
+          <div class="slider-head">
+            <label for="sessions">Long break every</label>
+            <output id="sessionsVal">4 sessions</output>
           </div>
-          <span class="unit">sessions</span>
+          <input type="range" id="sessions" min="2" max="8" step="1" value="4" />
         </div>
-      </div>
+      </section>
 
-      <div class="field themes-field">
+      <section class="scenes-sec">
         <span class="label-like">Ambience</span>
-        <div class="themes" id="themes">
-          <button type="button" class="swatch" data-theme="ocean">Ocean</button>
-          <button type="button" class="swatch" data-theme="dawn">Dawn</button>
-          <button type="button" class="swatch" data-theme="forest">Forest</button>
-          <button type="button" class="swatch" data-theme="dusk">Dusk</button>
-          <button type="button" class="swatch" data-theme="midnight">Midnight</button>
-          <button type="button" class="swatch" data-theme="mist">Mist</button>
+        <div class="scenes" id="scenes">
+          <button type="button" class="scene" data-scene="rain">
+            <span class="preview p-rain"></span>
+            <span class="name">Rainy Window</span>
+          </button>
+          <button type="button" class="scene" data-scene="cafe">
+            <span class="preview p-cafe"></span>
+            <span class="name">Café Glow</span>
+          </button>
+          <button type="button" class="scene" data-scene="sunset">
+            <span class="preview p-sunset"></span>
+            <span class="name">Sunset Skies</span>
+          </button>
+          <button type="button" class="scene" data-scene="ocean">
+            <span class="preview p-ocean"></span>
+            <span class="name">Ocean Drift</span>
+          </button>
+          <button type="button" class="scene" data-scene="midnight">
+            <span class="preview p-midnight"></span>
+            <span class="name">Midnight Stars</span>
+          </button>
+          <button type="button" class="scene" data-scene="forest">
+            <span class="preview p-forest"></span>
+            <span class="name">Firefly Grove</span>
+          </button>
         </div>
-      </div>
+      </section>
 
       <label class="toggle">
         <input type="checkbox" id="sound" checked />
@@ -84,25 +98,38 @@
         <span class="toggle-text">Transition chime</span>
       </label>
 
-      <button id="start" class="start-btn" type="button">Begin session</button>
-      <p class="hint">tip: open this page on your phone and “Add to Home Screen”</p>
+      <button id="start" class="start-btn" type="button">
+        <span>Begin session</span>
+        <span class="arrow" aria-hidden="true">&rarr;</span>
+      </button>
+      <p class="hint">tip: open this page on your phone and &ldquo;Add to Home Screen&rdquo;</p>
     </div>
   </main>
 
   <!-- ================= SESSION SCREEN ================= -->
   <main id="session" class="screen hidden">
+    <div class="halo" aria-hidden="true"></div>
+
     <div class="timer-wrap">
       <div class="phase-label" id="phaseLabel">Focus</div>
 
       <div class="ring">
         <svg viewBox="0 0 300 300" aria-hidden="true">
-          <circle class="ring-bg" cx="150" cy="150" r="140"></circle>
+          <defs>
+            <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" class="grad-a" />
+              <stop offset="100%" class="grad-b" />
+            </linearGradient>
+          </defs>
+          <circle class="ring-track" cx="150" cy="150" r="140"></circle>
           <circle class="ring-fg" id="ringFg" cx="150" cy="150" r="140"></circle>
         </svg>
-        <div class="time" id="time">25:00</div>
+        <div class="ring-center">
+          <div class="time" id="time">25:00</div>
+          <div class="phase-sub" id="phaseSub">round 1 &middot; session 1 of 4</div>
+        </div>
       </div>
 
-      <div class="round-label" id="roundLabel">Round 1 · Session 1 of 4</div>
       <div class="dots" id="dots" aria-hidden="true"></div>
     </div>
 
@@ -120,7 +147,7 @@
     </div>
   </main>
 
-  <!-- transition toast -->
+  <!-- phase transition toast -->
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
   <script src="app.js"></script>

@@ -1,6 +1,7 @@
 /* ============================================================
-   Stillpoint — calm pomodoro timer
-   Vanilla JS, no dependencies. Settings persist in localStorage.
+   Stillpoint — calm pomodoro timer · v2
+   Vanilla JS. Settings persist in localStorage.
+   Canvas-driven living scenes + smooth screen transitions.
    ============================================================ */
 (() => {
   'use strict';
@@ -9,18 +10,21 @@
   const $  = (sel) => document.querySelector(sel);
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
-  const DEFAULTS = { focus: 25, short: 5, long: 15, sessions: 4, theme: 'ocean', sound: true };
+  const DEFAULTS = { focus: 25, short: 5, long: 15, sessions: 4, scene: 'rain', sound: true };
   const STORE_KEY = 'stillpoint-settings';
 
+  // migrate v1 theme names to v2 scene ids
+  const SCENE_MIGRATION = { dawn: 'sunset', dusk: 'sunset', mist: 'rain' };
+
   const PHASE_META = {
-    focus: { label: 'Focus',       toast: 'Time to focus' },
-    short: { label: 'Short break', toast: 'Breathe — short break' },
-    long:  { label: 'Long break',  toast: 'Rest well — long break' },
+    focus: { label: 'focus',       toast: 'Time to focus' },
+    short: { label: 'short break', toast: 'Breathe — short break' },
+    long:  { label: 'long break',  toast: 'Rest well — long break' },
   };
 
-  const THEME_COLORS = {
-    ocean: '#12232e', dawn: '#f7c3b4', forest: '#0e3a2c',
-    dusk: '#3d1d6e', midnight: '#0b0e1f', mist: '#dde4ea',
+  const SCENE_COLORS = {
+    rain: '#16222e', cafe: '#241609', sunset: '#2a1a4a',
+    ocean: '#0f2027', midnight: '#05060f', forest: '#0b3d2e',
   };
 
   /* ---------------- elements ---------------- */
@@ -29,7 +33,7 @@
   const timeEl     = $('#time');
   const ringFg     = $('#ringFg');
   const phaseLabel = $('#phaseLabel');
-  const roundLabel = $('#roundLabel');
+  const phaseSub   = $('#phaseSub');
   const dotsEl     = $('#dots');
   const toastEl    = $('#toast');
   const pauseBtn   = $('#pauseBtn');
@@ -38,12 +42,17 @@
   const startBtn   = $('#start');
   const soundInput = $('#sound');
   const metaTheme  = $('#metaTheme');
-  const inputs = {
+  const bgEl       = document.querySelector('.bg');
+  const sliders = {
     focus: $('#focus'), short: $('#short'),
     long: $('#long'),   sessions: $('#sessions'),
   };
+  const outputs = {
+    focus: $('#focusVal'), short: $('#shortVal'),
+    long: $('#longVal'),   sessions: $('#sessionsVal'),
+  };
 
-  const RING_C = 2 * Math.PI * 140; // circle r = 140
+  const RING_C = 2 * Math.PI * 140; // ring circle r = 140
   ringFg.style.strokeDasharray = String(RING_C);
 
   /* ---------------- settings ---------------- */
@@ -51,8 +60,11 @@
 
   function loadSettings() {
     try {
-      const raw = JSON.parse(localStorage.getItem(STORE_KEY));
-      return Object.assign({}, DEFAULTS, raw || {});
+      const raw = JSON.parse(localStorage.getItem(STORE_KEY)) || {};
+      if (raw.theme && !raw.scene) raw.scene = raw.theme; // v1 -> v2 key rename
+      const merged = Object.assign({}, DEFAULTS, raw);
+      if (SCENE_MIGRATION[merged.scene]) merged.scene = SCENE_MIGRATION[merged.scene];
+      return merged;
     } catch {
       return Object.assign({}, DEFAULTS);
     }
@@ -65,64 +77,92 @@
   /* ---------------- state ---------------- */
   let phase     = 'focus';   // 'focus' | 'short' | 'long'
   let completed = 0;         // focus sessions finished (total, across rounds)
-  let running   = false;     // session screen is active
+  let running   = false;
   let paused    = false;
-  let timeLeft  = 0;         // seconds remaining in current phase
-  let totalTime = 1;         // seconds in current phase (for the ring)
-  let endAt     = 0;         // timestamp the phase ends (accurate when tab is throttled)
+  let timeLeft  = 0;
+  let totalTime = 1;
+  let endAt     = 0;
 
   let wakeLock   = null;
   let toastTimer = null;
   let idleTimer  = null;
   let audioCtx   = null;
 
+  /* ---------------- screen transitions ---------------- */
+  function showScreen(el) {
+    el.classList.remove('hidden');
+    requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('visible')));
+  }
+
+  function hideScreen(el) {
+    el.classList.remove('visible');
+    setTimeout(() => el.classList.add('hidden'), 520);
+  }
+
   /* ---------------- setup screen ---------------- */
   function initSetup() {
-    inputs.focus.value    = settings.focus;
-    inputs.short.value    = settings.short;
-    inputs.long.value     = settings.long;
-    inputs.sessions.value = settings.sessions;
-    soundInput.checked    = settings.sound;
-    applyTheme(settings.theme);
+    sliders.focus.value    = settings.focus;
+    sliders.short.value    = settings.short;
+    sliders.long.value     = settings.long;
+    sliders.sessions.value = settings.sessions;
+    soundInput.checked     = settings.sound;
+    Object.keys(sliders).forEach((k) => syncSlider(k, false));
+    setScene(settings.scene, false);
   }
 
-  function applyTheme(theme) {
-    settings.theme = theme;
-    document.body.dataset.theme = theme;
-    if (metaTheme) metaTheme.setAttribute('content', THEME_COLORS[theme] || '#12232e');
-    $$('.swatch').forEach((s) => s.classList.toggle('active', s.dataset.theme === theme));
+  function sliderText(key, v) {
+    if (key === 'sessions') return v + (v === 1 ? ' session' : ' sessions');
+    return v + ' min';
   }
 
-  // +/- steppers
-  $$('.stepper button').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const input = inputs[btn.dataset.step];
-      if (!input) return;
-      const dir = Number(btn.dataset.dir);
-      const min = Number(input.min || 1);
-      const max = Number(input.max || 999);
-      const cur = parseInt(input.value, 10);
-      input.value = Math.min(max, Math.max(min, (isNaN(cur) ? min : cur) + dir));
+  function syncSlider(key, popIt) {
+    const el = sliders[key];
+    const v = parseInt(el.value, 10) || 0;
+    const min = Number(el.min), max = Number(el.max);
+    const pct = ((v - min) / (max - min)) * 100;
+    el.style.setProperty('--val', pct + '%');
+    const out = outputs[key];
+    out.textContent = sliderText(key, v);
+    if (popIt !== false) {
+      out.classList.remove('pop');
+      void out.offsetWidth;
+      out.classList.add('pop');
+    }
+  }
+
+  Object.keys(sliders).forEach((key) => {
+    sliders[key].addEventListener('input', () => {
+      syncSlider(key);
+      settings[key] = parseInt(sliders[key].value, 10);
     });
+    sliders[key].addEventListener('change', saveSettings);
   });
 
-  // theme swatches
-  $$('.swatch').forEach((sw) => {
-    sw.addEventListener('click', () => {
-      applyTheme(sw.dataset.theme);
+  /* ---------------- scene picker ---------------- */
+  $$('.scene').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.scene === settings.scene) return;
+      setScene(btn.dataset.scene, true);
       saveSettings();
     });
   });
 
-  soundInput.addEventListener('change', () => {
-    settings.sound = soundInput.checked;
-    saveSettings();
-  });
+  function setScene(name, fade) {
+    settings.scene = name;
+    if (metaTheme) metaTheme.setAttribute('content', SCENE_COLORS[name] || '#16222e');
+    $$('.scene').forEach((b) => b.classList.toggle('active', b.dataset.scene === name));
 
-  function clampInt(v, min, max, fallback) {
-    const n = parseInt(v, 10);
-    if (isNaN(n)) return fallback;
-    return Math.min(max, Math.max(min, n));
+    if (fade && bgEl) {
+      bgEl.classList.add('swap');
+      setTimeout(() => {
+        document.body.dataset.scene = name;
+        initSceneParticles();
+        bgEl.classList.remove('swap');
+      }, 380);
+    } else {
+      document.body.dataset.scene = name;
+      initSceneParticles();
+    }
   }
 
   /* ---------------- audio (soft chime) ---------------- */
@@ -156,7 +196,7 @@
     } catch { /* ignore */ }
   }
 
-  /* ---------------- wake lock (keep screen on) ---------------- */
+  /* ---------------- wake lock ---------------- */
   async function requestWakeLock() {
     try {
       if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen');
@@ -190,13 +230,12 @@
     const n = settings.sessions;
     const done = completed % n;
     // the long break still belongs to the round it just completed
-    let round = Math.floor(completed / n) + 1;
-    if (phase === 'long' && done === 0 && completed > 0) round = completed / n;
+    const round = Math.floor((completed - (phase !== 'focus' ? 1 : 0)) / n) + 1;
     const sessionNum = phase === 'focus' ? done + 1 : (done === 0 ? n : done);
-    roundLabel.textContent = 'Round ' + round + ' · Session ' + sessionNum + ' of ' + n;
+    phaseSub.textContent = 'round ' + round + ' · session ' + sessionNum + ' of ' + n;
 
     let filled = done;
-    if (phase === 'long' && done === 0) filled = n; // just finished the full round
+    if (phase === 'long' && done === 0) filled = n;
     const currentIdx = phase === 'focus' ? done : -1;
 
     dotsEl.innerHTML = '';
@@ -210,20 +249,25 @@
   function showToast(text) {
     toastEl.textContent = text;
     toastEl.classList.remove('hidden', 'show');
-    void toastEl.offsetWidth; // restart animation
+    void toastEl.offsetWidth;
     toastEl.classList.add('show');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => {
       toastEl.classList.remove('show');
       toastEl.classList.add('hidden');
-    }, 2600);
+    }, 2700);
+  }
+
+  function swapPhaseLabel() {
+    phaseLabel.textContent = PHASE_META[phase].label;
+    phaseLabel.classList.remove('swap');
+    void phaseLabel.offsetWidth;
+    phaseLabel.classList.add('swap');
   }
 
   function setPauseIcon() {
-    const pauseIcon = pauseBtn.querySelector('.icon-pause');
-    const playIcon  = pauseBtn.querySelector('.icon-play');
-    pauseIcon.classList.toggle('hidden', paused);
-    playIcon.classList.toggle('hidden', !paused);
+    pauseBtn.querySelector('.icon-pause').classList.toggle('hidden', paused);
+    pauseBtn.querySelector('.icon-play').classList.toggle('hidden', !paused);
     pauseBtn.setAttribute('aria-label', paused ? 'Resume' : 'Pause');
   }
 
@@ -239,7 +283,7 @@
     timeLeft  = totalTime;
     endAt     = Date.now() + timeLeft * 1000;
     document.body.dataset.phase = phase;
-    phaseLabel.textContent = PHASE_META[phase].label;
+    swapPhaseLabel();
     renderMeta();
     updateUI();
     showToast(PHASE_META[phase].toast);
@@ -257,13 +301,282 @@
     startPhase();
   }
 
-  // single tick loop; timestamp-based so it stays accurate in background tabs
+  // timestamp-based tick: stays accurate even in throttled background tabs
   setInterval(() => {
     if (!running || paused) return;
     timeLeft = Math.max(0, Math.round((endAt - Date.now()) / 1000));
     updateUI();
     if (timeLeft <= 0) advance();
   }, 250);
+
+  /* ---------------- living scene canvas engine ---------------- */
+  const canvas   = $('#sceneCanvas');
+  const ctx      = canvas ? canvas.getContext('2d') : null;
+  const reduced  = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  let W = 0, H = 0;
+  let particles = [];
+  let sceneName = settings.scene;
+  let lastT = 0;
+  let rafId = null;
+  let shooter = null;      // midnight shooting star
+  let nextShot = 3;
+  const sprites = {};
+
+  function makeGlowSprite(r, g, b) {
+    const s = document.createElement('canvas');
+    s.width = s.height = 64;
+    const c = s.getContext('2d');
+    const grad = c.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0,    'rgba(' + r + ',' + g + ',' + b + ',1)');
+    grad.addColorStop(0.35, 'rgba(' + r + ',' + g + ',' + b + ',0.5)');
+    grad.addColorStop(1,    'rgba(' + r + ',' + g + ',' + b + ',0)');
+    c.fillStyle = grad;
+    c.fillRect(0, 0, 64, 64);
+    return s;
+  }
+
+  function makeCloudSprite(r, g, b) {
+    const s = document.createElement('canvas');
+    s.width = 300; s.height = 140;
+    const c = s.getContext('2d');
+    const blobs = [[80, 90, 60], [140, 70, 72], [205, 88, 60], [115, 100, 55], [175, 105, 50], [240, 100, 40]];
+    blobs.forEach((b3) => {
+      const x = b3[0], y = b3[1], rad = b3[2];
+      const grad = c.createRadialGradient(x, y, 0, x, y, rad);
+      grad.addColorStop(0, 'rgba(' + r + ',' + g + ',' + b + ',0.55)');
+      grad.addColorStop(1, 'rgba(' + r + ',' + g + ',' + b + ',0)');
+      c.fillStyle = grad;
+      c.beginPath();
+      c.arc(x, y, rad, 0, Math.PI * 2);
+      c.fill();
+    });
+    return s;
+  }
+
+  function buildSprites() {
+    sprites.amber      = makeGlowSprite(244, 178, 107);
+    sprites.cream      = makeGlowSprite(255, 226, 180);
+    sprites.teal       = makeGlowSprite(140, 215, 220);
+    sprites.firefly    = makeGlowSprite(200, 250, 160);
+    sprites.cloudPink  = makeCloudSprite(255, 168, 185);
+    sprites.cloudPeach = makeCloudSprite(255, 192, 150);
+  }
+
+  /* ----- per-scene particle systems ----- */
+  const sceneDefs = {
+    rain: {
+      init() {
+        particles = [];
+        const n = Math.min(150, Math.max(60, Math.floor(W / 9)));
+        for (let i = 0; i < n; i++) particles.push(this.make(true));
+      },
+      make(anyY) {
+        return {
+          x: Math.random() * (W + 60), y: anyY ? Math.random() * H : -20 - Math.random() * 50,
+          len: 9 + Math.random() * 15, v: 420 + Math.random() * 300,
+          drift: -40 - Math.random() * 35, o: 0.08 + Math.random() * 0.2,
+        };
+      },
+      update(p, dt) {
+        p.y += p.v * dt;
+        p.x += p.drift * dt;
+        if (p.y > H + 10) Object.assign(p, this.make(false));
+      },
+      draw(p) {
+        ctx.strokeStyle = 'rgba(188, 216, 236,' + p.o.toFixed(3) + ')';
+        ctx.lineWidth = 1.1;
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x + p.drift * 0.02, p.y + p.len);
+        ctx.stroke();
+      },
+    },
+
+    cafe: {
+      init() {
+        particles = [];
+        for (let i = 0; i < 20; i++) {
+          particles.push({
+            x: Math.random() * W, y: Math.random() * H,
+            r: 34 + Math.random() * 72, v: 6 + Math.random() * 13,
+            sway: 10 + Math.random() * 18, phase: Math.random() * Math.PI * 2,
+            o: 0.05 + Math.random() * 0.09, warm: Math.random() < 0.7,
+          });
+        }
+      },
+      update(p, dt) {
+        p.y -= p.v * dt;
+        p.phase += dt * 0.35;
+        p.x += Math.sin(p.phase) * p.sway * dt;
+        if (p.y < -p.r * 2) { p.y = H + p.r * 2; p.x = Math.random() * W; }
+      },
+      draw(p) {
+        ctx.globalAlpha = p.o;
+        ctx.drawImage(p.warm ? sprites.amber : sprites.cream, p.x - p.r, p.y - p.r, p.r * 2, p.r * 2);
+        ctx.globalAlpha = 1;
+      },
+    },
+
+    sunset: {
+      init() {
+        particles = [];
+        for (let i = 0; i < 8; i++) {
+          particles.push({
+            x: Math.random() * W, y: Math.random() * H * 0.6,
+            w: 240 + Math.random() * 420, v: 5 + Math.random() * 9,
+            o: 0.14 + Math.random() * 0.18, pink: Math.random() < 0.5,
+          });
+        }
+      },
+      update(p, dt) {
+        p.x += p.v * dt;
+        if (p.x - p.w > W + 40) { p.x = -p.w; p.y = Math.random() * H * 0.6; }
+      },
+      draw(p) {
+        ctx.globalAlpha = p.o;
+        ctx.drawImage(p.pink ? sprites.cloudPink : sprites.cloudPeach, p.x - p.w / 2, p.y - p.w / 4, p.w, p.w / 2);
+        ctx.globalAlpha = 1;
+      },
+    },
+
+    ocean: {
+      init() {
+        particles = [];
+        for (let i = 0; i < 26; i++) {
+          particles.push({
+            x: Math.random() * W, y: Math.random() * H,
+            r: 6 + Math.random() * 24, v: 12 + Math.random() * 22,
+            sway: 8 + Math.random() * 14, phase: Math.random() * Math.PI * 2,
+            o: 0.05 + Math.random() * 0.11,
+          });
+        }
+      },
+      update(p, dt) {
+        p.y -= p.v * dt;
+        p.phase += dt * 0.6;
+        p.x += Math.sin(p.phase) * p.sway * dt;
+        if (p.y < -p.r * 2) { p.y = H + p.r * 2; p.x = Math.random() * W; }
+      },
+      draw(p) {
+        ctx.globalAlpha = p.o;
+        ctx.drawImage(sprites.teal, p.x - p.r, p.y - p.r, p.r * 2, p.r * 2);
+        ctx.globalAlpha = 1;
+      },
+    },
+
+    midnight: {
+      init() {
+        particles = [];
+        for (let i = 0; i < 110; i++) {
+          particles.push({
+            x: Math.random() * W, y: Math.random() * H,
+            r: 0.6 + Math.random() * 1.6, tw: 0.5 + Math.random() * 2,
+            phase: Math.random() * Math.PI * 2, o: 0.3 + Math.random() * 0.7,
+          });
+        }
+        shooter = null;
+        nextShot = 2 + Math.random() * 3;
+      },
+      update(p, dt) { p.phase += dt * p.tw; },
+      draw(p) {
+        const a = p.o * (0.5 + 0.5 * Math.sin(p.phase));
+        ctx.fillStyle = 'rgba(235, 240, 255,' + a.toFixed(3) + ')';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fill();
+      },
+      extra(dt) {
+        // occasional shooting star
+        nextShot -= dt;
+        if (!shooter && nextShot <= 0) {
+          shooter = {
+            x: Math.random() * W * 0.6, y: Math.random() * H * 0.3,
+            vx: 520 + Math.random() * 320, vy: 150 + Math.random() * 120, life: 0.9,
+          };
+        }
+        if (shooter) {
+          const s = shooter;
+          s.x += s.vx * dt; s.y += s.vy * dt; s.life -= dt;
+          const a = Math.max(0, Math.min(1, s.life));
+          const grad = ctx.createLinearGradient(s.x, s.y, s.x - s.vx * 0.12, s.y - s.vy * 0.12);
+          grad.addColorStop(0, 'rgba(255,255,255,' + a.toFixed(3) + ')');
+          grad.addColorStop(1, 'rgba(255,255,255,0)');
+          ctx.strokeStyle = grad;
+          ctx.lineWidth = 1.6;
+          ctx.beginPath();
+          ctx.moveTo(s.x, s.y);
+          ctx.lineTo(s.x - s.vx * 0.12, s.y - s.vy * 0.12);
+          ctx.stroke();
+          if (s.life <= 0 || s.x > W + 100) { shooter = null; nextShot = 4 + Math.random() * 6; }
+        }
+      },
+    },
+
+    forest: {
+      init() {
+        particles = [];
+        for (let i = 0; i < 24; i++) {
+          particles.push({
+            x: Math.random() * W, y: Math.random() * H,
+            r: 9 + Math.random() * 11,
+            ax: 20 + Math.random() * 40, ay: 15 + Math.random() * 30,
+            fx: 0.2 + Math.random() * 0.4, fy: 0.15 + Math.random() * 0.3,
+            px: Math.random() * Math.PI * 2, py: Math.random() * Math.PI * 2,
+            pulse: 0.6 + Math.random() * 1.4, o: 0.25 + Math.random() * 0.45,
+            bx: 0, by: 0, glow: 0.5,
+          });
+        }
+      },
+      update(p, dt) {
+        p.px += dt * p.fx;
+        p.py += dt * p.fy;
+        p.bx = p.x + Math.sin(p.px) * p.ax;
+        p.by = p.y + Math.cos(p.py) * p.ay;
+        p.glow = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(p.px * p.pulse * 2));
+      },
+      draw(p) {
+        ctx.globalAlpha = p.o * p.glow;
+        ctx.drawImage(sprites.firefly, p.bx - p.r, p.by - p.r, p.r * 2, p.r * 2);
+        ctx.globalAlpha = 1;
+      },
+    },
+  };
+
+  function initSceneParticles() {
+    if (!ctx || !sceneDefs[settings.scene]) return;
+    sceneName = settings.scene;
+    sceneDefs[sceneName].init();
+  }
+
+  function resizeCanvas() {
+    if (!canvas || !ctx) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width  = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    initSceneParticles();
+  }
+
+  function frame(t) {
+    rafId = requestAnimationFrame(frame);
+    if (document.hidden) { lastT = t; return; }
+    const dt = Math.min(0.05, (t - lastT) / 1000 || 0.016);
+    lastT = t;
+    const def = sceneDefs[sceneName];
+    if (!def) return;
+    ctx.clearRect(0, 0, W, H);
+    if (def.extra) def.extra(dt);
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i];
+      def.update(p, dt);
+      def.draw(p);
+    }
+  }
+
+  window.addEventListener('resize', resizeCanvas);
 
   /* ---------------- session controls ---------------- */
   function togglePause() {
@@ -283,16 +596,16 @@
 
   skipBtn.addEventListener('click', () => {
     if (!running) return;
-    advance(); // skips straight into the next phase
+    advance();
   });
 
   function endSession() {
     running = false;
     paused  = false;
     releaseWakeLock();
-    sessionEl.classList.add('hidden');
-    sessionEl.classList.remove('paused');
-    setupEl.classList.remove('hidden');
+    sessionEl.classList.remove('paused', 'idle');
+    hideScreen(sessionEl);
+    showScreen(setupEl);
     document.body.dataset.phase = 'focus';
     document.title = 'Stillpoint · Pomodoro Timer';
     initSetup();
@@ -330,10 +643,10 @@
 
   /* ---------------- start ---------------- */
   startBtn.addEventListener('click', () => {
-    settings.focus    = clampInt(inputs.focus.value,    1, 180, DEFAULTS.focus);
-    settings.short    = clampInt(inputs.short.value,    1, 60,  DEFAULTS.short);
-    settings.long     = clampInt(inputs.long.value,     1, 120, DEFAULTS.long);
-    settings.sessions = clampInt(inputs.sessions.value, 1, 12,  DEFAULTS.sessions);
+    settings.focus    = parseInt(sliders.focus.value, 10)    || DEFAULTS.focus;
+    settings.short    = parseInt(sliders.short.value, 10)    || DEFAULTS.short;
+    settings.long     = parseInt(sliders.long.value, 10)     || DEFAULTS.long;
+    settings.sessions = parseInt(sliders.sessions.value, 10) || DEFAULTS.sessions;
     settings.sound    = soundInput.checked;
     saveSettings();
     unlockAudio();
@@ -344,8 +657,8 @@
     paused    = false;
     setPauseIcon();
 
-    setupEl.classList.add('hidden');
-    sessionEl.classList.remove('hidden');
+    hideScreen(setupEl);
+    showScreen(sessionEl);
     sessionEl.classList.remove('idle');
 
     startPhase();
@@ -353,5 +666,11 @@
   });
 
   /* ---------------- boot ---------------- */
+  if (canvas && ctx) {
+    buildSprites();
+    resizeCanvas();
+    if (!reduced) rafId = requestAnimationFrame(frame);
+  }
   initSetup();
+  showScreen(setupEl);
 })();
