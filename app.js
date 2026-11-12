@@ -18,7 +18,7 @@
   const SCENE_MIGRATION = {
     dawn: 'sunset', dusk: 'sunset', mist: 'rain',
     'photo-study': 'catstudy', 'photo-cafe': 'wintercafe', 'photo-loft': 'cloudride',
-    cloudsea: 'cloudride', bedroom: 'catstudy',
+    cloudsea: 'cloudride', bedroom: 'catstudy', library: 'catstudy',
     pixstudy: 'catstudy', pixcafe: 'wintercafe', pixloft: 'cloudride',
   };
 
@@ -27,7 +27,6 @@
     { id: 'catstudy',   kind: 'photo',    name: 'Cat Study' },
     { id: 'wintercafe', kind: 'photo',    name: 'Winter Café' },
     { id: 'cloudride',  kind: 'photo',    name: 'Cloud Ride' },
-    { id: 'library',    kind: 'pixel',    name: 'Library' },
     { id: 'rain',       kind: 'particle', name: 'Rain' },
     { id: 'sunset',     kind: 'particle', name: 'Sunset' },
     { id: 'midnight',   kind: 'particle', name: 'Stars' },
@@ -49,7 +48,7 @@
   };
 
   const SCENE_COLORS = {
-    catstudy: '#241a2e', wintercafe: '#1e2438', cloudride: '#3a2a5e', library: '#12211a',
+    catstudy: '#241a2e', wintercafe: '#1e2438', cloudride: '#3a2a5e',
     rain: '#16222e', sunset: '#2a1a4a', midnight: '#05060f',
     ocean: '#0f2027', cafe: '#241609', forest: '#0b3d2e',
   };
@@ -709,109 +708,6 @@
     },
   };
 
-  /* ---------------- 8-bit pixel diorama engine ---------------- */
-  // Scenes draw into a tiny buffer (pixBuf), then blit upscaled with
-  // smoothing off so every pixel stays chunky. Image scenes use the
-  // pixelated artwork in bg/ and add animated pixel overlays on top.
-  let pixW = 160, pixH = 107;
-  let pixScene = null;
-  const pixBuf = document.createElement('canvas');
-  pixBuf.width = pixW;
-  pixBuf.height = pixH;
-  const pctx = pixBuf.getContext ? pixBuf.getContext('2d') : null;
-  if (pctx) pctx.imageSmoothingEnabled = false;
-
-  function sizePixCanvas() { /* fixed 160x107 buffer; cover-cropped at blit time */ }
-
-  function drawPixFrame(t) {
-    if (!pixScene || !pctx) return;
-    pctx.clearRect(0, 0, pixW, pixH);
-    pixScene.draw(pctx, pixW, pixH, t);
-
-    // blit to screen: cover-fit + a slow ambient "breathing" zoom
-    const breathe = 1 + 0.018 * Math.sin(t * 0.45);
-    const s = Math.max(W / pixW, H / pixH) * breathe;
-    const dw = pixW * s, dh = pixH * s;
-    ctx.save();
-    ctx.imageSmoothingEnabled = false;
-    ctx.clearRect(0, 0, W, H);
-    ctx.drawImage(pixBuf, 0, 0, pixW, pixH, (W - dw) / 2, (H - dh) / 2, dw, dh);
-    ctx.restore();
-  }
-
-  // tiny rect helper
-  function R(c, x, y, w, h, col) {
-    c.fillStyle = col;
-    c.fillRect(x | 0, y | 0, Math.max(1, w | 0), Math.max(1, h | 0));
-  }
-
-  function circleRows(c, cx, cy, r, col) {
-    c.fillStyle = col;
-    for (let y = -r; y <= r; y++) {
-      const w = Math.floor(Math.sqrt(r * r - y * y));
-      c.fillRect((cx - w) | 0, (cy + y) | 0, w * 2, 1);
-    }
-  }
-
-  const PIXEL_SCENES = {
-    /* hushed library: shelves, ladder, reading lamp, dust motes */
-    library: {
-      build(w, h) {
-        this.t = 0;
-        // pre-randomize book rows so they don't flicker
-        this.rows = [];
-        const shelfTop = h * 0.12, shelfH = h * 0.16;
-        for (let s = 0; s < 4; s++) {
-          const books = [];
-          let x = 4;
-          while (x < w * 0.62 - 6) {
-            const bw = 2 + Math.floor(Math.random() * 3);
-            const bh = shelfH * 0.55 + Math.random() * shelfH * 0.3;
-            const cols = ['#7a4a3a', '#a8763e', '#5c7a4a', '#4a5e7a', '#8a4a56', '#c2a86a', '#6a4a7a'];
-            books.push({ x, w: bw, h: bh, col: cols[Math.floor(Math.random() * cols.length)] });
-            x += bw + 1;
-          }
-          this.rows.push({ y: shelfTop + s * (shelfH + 4), books });
-        }
-        this.motes = [];
-        for (let i = 0; i < 14; i++) {
-          this.motes.push({ x: Math.random() * w, y: Math.random() * h, ph: Math.random() * 6.3 });
-        }
-      },
-      draw(c, w, h, t) {
-        R(c, 0, 0, w, h, '#101d16');
-        R(c, 0, 0, w, h * 0.7, '#18281e');
-        R(c, 0, h * 0.7, w, h * 0.3, '#0e1a12');
-        // bookshelf frame
-        R(c, 2, h * 0.1, w * 0.62 + 4, h * 0.72, '#241408');
-        R(c, 4, h * 0.12, w * 0.62, h * 0.68, '#160e06');
-        this.rows.forEach((row) => {
-          row.books.forEach((b) => R(c, b.x, row.y + (h * 0.12 - b.h) * 0.4, b.w, b.h, b.col));
-          R(c, 4, row.y + h * 0.1, w * 0.62, 2, '#241408'); // shelf board
-        });
-        // window right side, moonlight
-        const wx = w * 0.74, wy = h * 0.14, ww = w * 0.2, wh = h * 0.4;
-        R(c, wx - 2, wy - 2, ww + 4, wh + 4, '#0c1208');
-        R(c, wx, wy, ww, wh, '#24304a');
-        circleRows(c, wx + ww * 0.68, wy + wh * 0.28, 5, '#e8ecf7');
-        R(c, wx + ww / 2 - 1, wy, 2, wh, '#0c1208');
-        // reading lamp glow (breathing)
-        const breathe = 0.5 + 0.5 * Math.sin(t * 0.9);
-        circleRows(c, w * 0.82, h * 0.78, 12, 'rgba(232,195,122,' + (0.10 + 0.08 * breathe).toFixed(3) + ')');
-        circleRows(c, w * 0.82, h * 0.78, 6,  'rgba(245,223,168,' + (0.22 + 0.12 * breathe).toFixed(3) + ')');
-        R(c, w * 0.82 - 2, h * 0.74, 5, 4, '#f5dfa8');
-        R(c, w * 0.82 - 1, h * 0.78, 3, h * 0.06, '#241408'); // stand
-        // dust motes drifting in the light
-        this.motes.forEach((m) => {
-          const yy = (m.y + t * 2) % h;
-          const xx = m.x + Math.sin(t * 0.5 + m.ph) * 6;
-          c.globalAlpha = 0.25 + 0.2 * Math.sin(t + m.ph);
-          R(c, xx, yy, 1, 1, '#f5e6c0');
-        });
-        c.globalAlpha = 1;
-      },
-    },
-  };
 
   function initSceneParticles() {
     const name = settings.scene;
@@ -819,7 +715,6 @@
     // photo scenes: show the artwork stage, pause canvas work (no canvas needed)
     if (PHOTO_SCENES[name]) {
       particles = [];
-      pixScene = null;
       sceneName = name;
       if (ctx) ctx.clearRect(0, 0, W, H);
       if (stageImg && stageBlur) {
@@ -832,20 +727,7 @@
     if (photoStage) photoStage.classList.remove('visible');
     if (!ctx) return;
 
-    // pixel diorama scenes render via the pixel engine
-    if (PIXEL_SCENES[name]) {
-      particles = [];
-      pixScene = PIXEL_SCENES[name];
-      sceneName = name;
-      canvas.classList.add('pixelated');
-      sizePixCanvas();
-      pixScene.build(pixW, pixH);
-      if (reduced) drawPixFrame(0); // draw one static frame
-      return;
-    }
-    canvas.classList.remove('pixelated');
-    pixScene = null;
-
+    // particle scenes
     if (!sceneDefs[name]) return;
     sceneName = name;
     sceneDefs[sceneName].init();
@@ -863,7 +745,6 @@
     canvas.width  = Math.round(W * dpr);
     canvas.height = Math.round(H * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    sizePixCanvas();
     initSceneParticles();
   }
 
@@ -872,12 +753,6 @@
     if (document.hidden) { lastT = t; return; }
     const dt = Math.min(0.05, (t - lastT) / 1000 || 0.016);
     lastT = t;
-
-    // pixel diorama scenes take over the canvas
-    if (pixScene) {
-      drawPixFrame(t / 1000);
-      return;
-    }
 
     const def = sceneDefs[sceneName];
     if (!def) return;

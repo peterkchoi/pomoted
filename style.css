@@ -31,12 +31,6 @@ body[data-scene="cloudride"] {
   --accent: #ffd9ec; --accent2: #ffeef6; --on-accent: #4a2440;
   --panel: rgba(40, 26, 60, .34);
 }
-body[data-scene="library"] {
-  --c1: #12211a; --c2: #26402e; --c3: #3f5c3a;
-  --fg: #eef4e4; --muted: rgba(238, 244, 228, .62);
-  --accent: #e8c37a; --accent2: #f5dfa8; --on-accent: #2e2110;
-  --panel: rgba(14, 24, 18, .4);
-}
 body[data-scene="rain"] {
   --c1: #141f2b; --c2: #22374a; --c3: #33506a;
   --fg: #e9f1f6; --muted: rgba(233, 241, 246, .6);
@@ -127,7 +121,8 @@ body {
   transform: scale(1.18);
 }
 .stage-img {
-  object-fit: contain;   /* never cropped, never zoomed — whole artwork visible */
+  object-fit: cover;   /* extends edge-to-edge, aspect ratio preserved — no bars, no stretching */
+  object-position: center;
   animation: stageBreathe 14s ease-in-out infinite;
 }
 @keyframes stageBreathe {
@@ -142,8 +137,6 @@ body {
   height: 100%;
   display: block;
 }
-#sceneCanvas.pixelated { image-rendering: pixelated; image-rendering: crisp-edges; }
-
 /* drifting cloud wisps */
 .clouds { position: absolute; inset: 0; overflow: hidden; }
 .cloud {
@@ -483,21 +476,6 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   from { background-position: 0% 40%, 60% 20%, 80% 80%, 0 0; }
   to   { background-position: 60% 70%, 20% 60%, 40% 30%, 0 0; }
 }
-.p-library {
-  image-rendering: pixelated;
-  background:
-    repeating-linear-gradient(90deg, #26402e 0 7px, #1c3224 7px 9px, #3f5c3a 9px 12px, #12211a 12px 20px),
-    linear-gradient(180deg, #12211a, #26402e);
-  background-size: 100% 68%, 100% 100%;
-  background-position: 0 100%, 0 0;
-  background-repeat: no-repeat;
-  animation: previewGlow 6s ease-in-out infinite;
-}
-@keyframes previewGlow {
-  0%, 100% { filter: brightness(.94); }
-  50%      { filter: brightness(1.08); }
-}
-
 /* carousel arrows */
 .arrow {
   position: absolute;
