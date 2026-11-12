@@ -10,15 +10,36 @@
   const $  = (sel) => document.querySelector(sel);
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
-  const DEFAULTS = { focus: 25, short: 5, long: 15, sessions: 4, scene: 'pixstudy', sound: true };
+  const DEFAULTS = { focus: 25, short: 5, long: 15, sessions: 4, scene: 'catstudy', sound: true };
   const STORE_KEY = 'pomoted-settings';
   const OLD_STORE_KEY = 'stillpoint-settings';
 
   // migrate old theme/photo/scene ids to current scene ids
   const SCENE_MIGRATION = {
     dawn: 'sunset', dusk: 'sunset', mist: 'rain',
-    'photo-study': 'pixstudy', 'photo-cafe': 'pixcafe', 'photo-loft': 'pixloft',
-    cloudsea: 'pixstudy', bedroom: 'pixloft',
+    'photo-study': 'catstudy', 'photo-cafe': 'wintercafe', 'photo-loft': 'cloudride',
+    cloudsea: 'cloudride', bedroom: 'catstudy',
+    pixstudy: 'catstudy', pixcafe: 'wintercafe', pixloft: 'cloudride',
+  };
+
+  // carousel order + kind of each scene
+  const SCENE_ORDER = [
+    { id: 'catstudy',   kind: 'photo',    name: 'Cat Study' },
+    { id: 'wintercafe', kind: 'photo',    name: 'Winter Café' },
+    { id: 'cloudride',  kind: 'photo',    name: 'Cloud Ride' },
+    { id: 'library',    kind: 'pixel',    name: 'Library' },
+    { id: 'rain',       kind: 'particle', name: 'Rain' },
+    { id: 'sunset',     kind: 'particle', name: 'Sunset' },
+    { id: 'midnight',   kind: 'particle', name: 'Stars' },
+    { id: 'ocean',      kind: 'particle', name: 'Ocean' },
+    { id: 'cafe',       kind: 'particle', name: 'Glow' },
+    { id: 'forest',     kind: 'particle', name: 'Fireflies' },
+  ];
+
+  const PHOTO_SCENES = {
+    catstudy:   'bg/cat-study.jpg',
+    wintercafe: 'bg/winter-cafe.gif',
+    cloudride:  'bg/cloud-ride.gif',
   };
 
   const PHASE_META = {
@@ -28,9 +49,9 @@
   };
 
   const SCENE_COLORS = {
-    rain: '#16222e', cafe: '#241609', sunset: '#2a1a4a',
-    ocean: '#0f2027', midnight: '#05060f', forest: '#0b3d2e',
-    pixstudy: '#2b1a10', pixcafe: '#141a34', pixloft: '#33182a', library: '#12211a',
+    catstudy: '#241a2e', wintercafe: '#1e2438', cloudride: '#3a2a5e', library: '#12211a',
+    rain: '#16222e', sunset: '#2a1a4a', midnight: '#05060f',
+    ocean: '#0f2027', cafe: '#241609', forest: '#0b3d2e',
   };
 
   /* ---------------- elements ---------------- */
@@ -49,6 +70,14 @@
   const soundInput = $('#sound');
   const metaTheme  = $('#metaTheme');
   const bgEl       = document.querySelector('.bg');
+  const photoStage = $('#photoStage');
+  const stageBlur  = $('#stageBlur');
+  const stageImg   = $('#stageImg');
+  const carouselEl = $('#carousel');
+  const prevBtn    = $('#prevScene');
+  const nextBtn    = $('#nextScene');
+  const scrollTrack = $('#scrollTrack');
+  const scrollThumb = $('#scrollThumb');
   const sliders = {
     focus: $('#focus'), short: $('#short'),
     long: $('#long'),   sessions: $('#sessions'),
@@ -163,19 +192,131 @@
     });
   });
 
-  /* ---------------- scene picker ---------------- */
-  $$('.scene').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      if (btn.dataset.scene === settings.scene) return;
-      setScene(btn.dataset.scene, true);
-      saveSettings();
+  /* ---------------- 3D showcase carousel ---------------- */
+  let carouselIdx = 0;
+  const sceneCards = [];
+
+  function buildCarousel() {
+    if (!carouselEl) return;
+    SCENE_ORDER.forEach((s, i) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'scene';
+      btn.dataset.scene = s.id;
+      btn.innerHTML =
+        '<span class="preview p-' + s.id + '"></span>' +
+        '<span class="name">' + s.name + '</span>';
+      btn.addEventListener('click', () => {
+        if (i === carouselIdx && s.id === settings.scene) return;
+        goToScene(i, true);
+        saveSettings();
+      });
+      carouselEl.appendChild(btn);
+      sceneCards.push(btn);
     });
+  }
+
+  function layoutCarousel() {
+    const n = sceneCards.length;
+    if (!n) return;
+    for (let i = 0; i < n; i++) {
+      const off = i - carouselIdx;                 // signed distance from center
+      const abs = Math.abs(off);
+      const el = sceneCards[i];
+      const clamped = Math.max(-3, Math.min(3, off));
+      const x = clamped * 150;                     // horizontal spread
+      const z = -Math.min(abs, 3) * 150;           // push side cards back
+      const rot = -clamped * 24;                   // yaw toward center
+      el.style.transform =
+        'translateX(' + x + 'px) translateZ(' + z + 'px) rotateY(' + rot + 'deg)' +
+        (abs > 3 ? ' translateZ(-460px)' : '');
+      el.style.opacity = abs > 3 ? 0 : 1 - abs * 0.16;
+      el.style.zIndex = 20 - Math.min(abs, 9);
+      el.style.pointerEvents = abs > 2 ? 'none' : 'auto';
+      el.classList.toggle('active', i === carouselIdx);
+      el.setAttribute('aria-hidden', abs > 3 ? 'true' : 'false');
+    }
+    // scrollbar thumb follows
+    if (scrollThumb && n > 1) {
+      const pct = carouselIdx / (n - 1);
+      scrollThumb.style.left = 'calc(' + (pct * 100).toFixed(2) + '% - ' + (pct * 18).toFixed(2) + '%)';
+    }
+  }
+
+  function goToScene(i, fade) {
+    const n = sceneCards.length;
+    carouselIdx = Math.max(0, Math.min(n - 1, i));
+    layoutCarousel();
+    const id = SCENE_ORDER[carouselIdx].id;
+    if (id !== settings.scene) setScene(id, fade !== false);
+  }
+
+  prevBtn && prevBtn.addEventListener('click', () => { goToScene(carouselIdx - 1, true); saveSettings(); });
+  nextBtn && nextBtn.addEventListener('click', () => { goToScene(carouselIdx + 1, true); saveSettings(); });
+
+  // keyboard navigation
+  window.addEventListener('keydown', (e) => {
+    if (running) return;
+    if (e.key === 'ArrowLeft')  { goToScene(carouselIdx - 1, true); saveSettings(); }
+    if (e.key === 'ArrowRight') { goToScene(carouselIdx + 1, true); saveSettings(); }
   });
 
+  // wheel scrub over the carousel
+  let wheelLock = 0;
+  carouselEl && carouselEl.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const now = Date.now();
+    if (now - wheelLock < 180) return;
+    wheelLock = now;
+    goToScene(carouselIdx + (e.deltaY > 0 ? 1 : -1), true);
+    saveSettings();
+  }, { passive: false });
+
+  // scrollbar: click + drag
+  function scrubTo(clientX) {
+    const rect = scrollTrack.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    goToScene(Math.round(pct * (sceneCards.length - 1)), true);
+  }
+  if (scrollTrack) {
+    let dragging = false;
+    scrollTrack.addEventListener('pointerdown', (e) => {
+      dragging = true;
+      scrollThumb.classList.add('dragging');
+      scrollTrack.setPointerCapture(e.pointerId);
+      scrubTo(e.clientX);
+    });
+    scrollTrack.addEventListener('pointermove', (e) => { if (dragging) scrubTo(e.clientX); });
+    scrollTrack.addEventListener('pointerup', () => {
+      dragging = false;
+      scrollThumb.classList.remove('dragging');
+      saveSettings();
+    });
+  }
+
+  // swipe/drag on the carousel itself
+  if (carouselEl) {
+    let startX = null;
+    carouselEl.addEventListener('pointerdown', (e) => { startX = e.clientX; });
+    carouselEl.addEventListener('pointerup', (e) => {
+      if (startX === null) return;
+      const dx = e.clientX - startX;
+      startX = null;
+      if (Math.abs(dx) > 34) {
+        goToScene(carouselIdx + (dx < 0 ? 1 : -1), true);
+        saveSettings();
+      }
+    });
+  }
+
+  /* ---------------- scene picker ---------------- */
   function setScene(name, fade) {
     settings.scene = name;
-    if (metaTheme) metaTheme.setAttribute('content', SCENE_COLORS[name] || '#16222e');
-    $$('.scene').forEach((b) => b.classList.toggle('active', b.dataset.scene === name));
+    if (metaTheme) metaTheme.setAttribute('content', SCENE_COLORS[name] || '#241a2e');
+    // keep carousel centered on the active scene
+    const idx = SCENE_ORDER.findIndex((s) => s.id === name);
+    if (idx >= 0 && idx !== carouselIdx) { carouselIdx = idx; layoutCarousel(); }
+    sceneCards.forEach((b, i) => b.classList.toggle('active', i === carouselIdx));
 
     if (fade && bgEl) {
       bgEl.classList.add('swap');
@@ -580,37 +721,12 @@
   const pctx = pixBuf.getContext ? pixBuf.getContext('2d') : null;
   if (pctx) pctx.imageSmoothingEnabled = false;
 
-  // preload pixel artwork
-  const pixImages = {};
-  if (typeof Image !== 'undefined') {
-    ['study', 'cafe', 'loft'].forEach((k) => {
-      const img = new Image();
-      img.src = 'bg/pix-' + k + '.png';
-      pixImages[k] = img;
-    });
-  }
-
   function sizePixCanvas() { /* fixed 160x107 buffer; cover-cropped at blit time */ }
 
   function drawPixFrame(t) {
     if (!pixScene || !pctx) return;
     pctx.clearRect(0, 0, pixW, pixH);
-
-    if (pixScene.imgKey) {
-      // base artwork, cover-fit into the buffer (chunky: no smoothing)
-      const img = pixImages[pixScene.imgKey];
-      if (img && img.complete && img.naturalWidth) {
-        const s = Math.max(pixW / img.width, pixH / img.height);
-        const dw = img.width * s, dh = img.height * s;
-        pctx.drawImage(img, (pixW - dw) / 2, (pixH - dh) / 2, dw, dh);
-      } else {
-        pctx.fillStyle = '#181410';
-        pctx.fillRect(0, 0, pixW, pixH);
-      }
-      pixScene.overlay(pctx, pixW, pixH, t);
-    } else {
-      pixScene.draw(pctx, pixW, pixH, t); // fully procedural scene
-    }
+    pixScene.draw(pctx, pixW, pixH, t);
 
     // blit to screen: cover-fit + a slow ambient "breathing" zoom
     const breathe = 1 + 0.018 * Math.sin(t * 0.45);
@@ -638,120 +754,6 @@
   }
 
   const PIXEL_SCENES = {
-    /* sunset study room (from user's photo) + birds, dust motes, lamp flicker */
-    pixstudy: {
-      imgKey: 'study',
-      build() {},
-      overlay(c, w, h, t) {
-        // window zone: right-center of the artwork (roughly x 56–96%, y 20–70%)
-        const wx = w * 0.56, wy = h * 0.2, ww = w * 0.4, wh = h * 0.5;
-        // birds drifting past the window
-        for (let i = 0; i < 3; i++) {
-          const speed = 3.5 + i * 1.2;
-          const span = ww + 30;
-          const bx = wx + ((t * speed + i * 47) % span) - 15;
-          const by = wy + wh * (0.2 + i * 0.22) + Math.sin(t * 2 + i) * 2;
-          const flap = Math.sin(t * 9 + i * 2) > 0 ? 0 : 1;
-          c.globalAlpha = 0.75;
-          R(c, bx, by + flap, 2, 1, '#3a2418');
-          R(c, bx - 1, by + (flap ? 0 : 1), 1, 1, '#3a2418');
-          R(c, bx + 2, by + (flap ? 0 : 1), 1, 1, '#3a2418');
-        }
-        c.globalAlpha = 1;
-        // dust motes floating in the sunlight beam
-        for (let i = 0; i < 10; i++) {
-          const ph = i * 1.7;
-          const dx = wx + ((i * 13.7 + t * 2.2) % ww);
-          const dy = wy + wh * 0.4 + ((i * 7.3 + t * 1.1) % (wh * 0.6));
-          c.globalAlpha = 0.2 + 0.18 * Math.sin(t * 1.5 + ph);
-          R(c, dx, dy, 1, 1, '#ffe8c0');
-        }
-        c.globalAlpha = 1;
-        // soft sun shimmer at the window center
-        const pulse = 0.5 + 0.5 * Math.sin(t * 0.8);
-        circleRows(c, w * 0.72, h * 0.44, 10, 'rgba(255,220,150,' + (0.05 + 0.05 * pulse).toFixed(3) + ')');
-      },
-    },
-
-    /* evening café (from user's photo) + steam, twinkling string lights, rain */
-    pixcafe: {
-      imgKey: 'cafe',
-      build() {
-        this.drops = [];
-        for (let i = 0; i < 26; i++) {
-          this.drops.push({ x: Math.random(), y: Math.random(), v: 0.55 + Math.random() * 0.45 });
-        }
-      },
-      overlay(c, w, h, t) {
-        // windows occupy left ~45% of the artwork
-        const winR = w * 0.45;
-        // rain streaks on the windows
-        this.drops.forEach((d) => {
-          d.y += d.v * 0.016 * 1.6;
-          if (d.y > 1) { d.y = 0; d.x = Math.random(); }
-          c.globalAlpha = 0.5;
-          R(c, d.x * winR, d.y * h * 0.85, 1, 2, '#9fc0e8');
-        });
-        c.globalAlpha = 1;
-        // steam wisps above the two front tables (bottom-left area)
-        for (let i = 0; i < 2; i++) {
-          const baseX = w * (0.16 + i * 0.22), baseY = h * 0.82;
-          for (let j = 0; j < 2; j++) {
-            const ph = (t * 0.4 + j * 0.5 + i * 0.25) % 1;
-            c.globalAlpha = 0.35 * (1 - ph);
-            R(c, baseX + Math.sin(ph * 6 + i) * 2, baseY - ph * 10, 1, 2, '#fff0dd');
-          }
-        }
-        c.globalAlpha = 1;
-        // string lights twinkle (top edge)
-        for (let i = 0; i < 6; i++) {
-          const lx = w * (0.5 + i * 0.08), ly = h * 0.1 + Math.sin(i * 1.3) * 3;
-          const tw = 0.5 + 0.5 * Math.sin(t * 2.6 + i * 1.9);
-          circleRows(c, lx, ly, 1, 'rgba(255,210,140,' + (0.35 + 0.5 * tw).toFixed(3) + ')');
-        }
-        // hanging lamp glow breathing (left pendant)
-        const flick = 0.85 + 0.15 * Math.sin(t * 6.7) * Math.sin(t * 2.9);
-        circleRows(c, w * 0.12, h * 0.22, 7, 'rgba(255,200,130,' + (0.10 * flick).toFixed(3) + ')');
-      },
-    },
-
-    /* rainy loft at sunset (from user's photo) + rain, city lights twinkle */
-    pixloft: {
-      imgKey: 'loft',
-      build() {
-        this.drops = [];
-        for (let i = 0; i < 34; i++) {
-          this.drops.push({ x: Math.random(), y: Math.random(), v: 0.5 + Math.random() * 0.5 });
-        }
-        this.lights = [];
-        for (let i = 0; i < 12; i++) {
-          this.lights.push({ x: Math.random(), y: 0.35 + Math.random() * 0.3, ph: Math.random() * 6.3 });
-        }
-      },
-      overlay(c, w, h, t) {
-        // big window spans roughly left 70%, top 10–75%
-        const wx = 0, wy = h * 0.1, ww = w * 0.7, wh = h * 0.65;
-        // rain on the window
-        this.drops.forEach((d) => {
-          d.y += d.v * 0.016 * 1.7;
-          if (d.y > 1) { d.y = 0; d.x = Math.random(); }
-          c.globalAlpha = 0.45;
-          R(c, wx + d.x * ww, wy + d.y * wh, 1, 3, '#c8b8d8');
-        });
-        c.globalAlpha = 1;
-        // city lights flickering through the glass
-        this.lights.forEach((L) => {
-          const tw = 0.5 + 0.5 * Math.sin(t * 1.8 + L.ph);
-          c.globalAlpha = 0.25 + 0.55 * tw;
-          R(c, wx + L.x * ww, wy + L.y * wh, 1, 1, '#ffe0a0');
-        });
-        c.globalAlpha = 1;
-        // slow sun-shimmer on the horizon
-        const pulse = 0.5 + 0.5 * Math.sin(t * 0.7);
-        circleRows(c, w * 0.3, h * 0.52, 9, 'rgba(255,190,140,' + (0.04 + 0.05 * pulse).toFixed(3) + ')');
-      },
-    },
-
     /* hushed library: shelves, ladder, reading lamp, dust motes */
     library: {
       build(w, h) {
@@ -813,6 +815,21 @@
 
   function initSceneParticles() {
     const name = settings.scene;
+
+    // photo scenes: show the artwork stage, pause canvas work (no canvas needed)
+    if (PHOTO_SCENES[name]) {
+      particles = [];
+      pixScene = null;
+      sceneName = name;
+      if (ctx) ctx.clearRect(0, 0, W, H);
+      if (stageImg && stageBlur) {
+        stageImg.src = PHOTO_SCENES[name];
+        stageBlur.src = PHOTO_SCENES[name];
+      }
+      if (photoStage) photoStage.classList.add('visible');
+      return;
+    }
+    if (photoStage) photoStage.classList.remove('visible');
     if (!ctx) return;
 
     // pixel diorama scenes render via the pixel engine
@@ -963,11 +980,16 @@
   });
 
   /* ---------------- boot ---------------- */
+  buildCarousel();
   if (canvas && ctx) {
     buildSprites();
     resizeCanvas();
     if (!reduced) rafId = requestAnimationFrame(frame);
   }
+  // center carousel on the saved scene, then reveal
+  const savedIdx = SCENE_ORDER.findIndex((s) => s.id === settings.scene);
+  carouselIdx = savedIdx >= 0 ? savedIdx : 0;
   initSetup();
+  layoutCarousel();
   showScreen(setupEl);
 })();

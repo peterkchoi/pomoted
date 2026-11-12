@@ -4,18 +4,22 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>pomoted · lofi pomodoro timer</title>
-<meta name="description" content="A calm, lofi pixel-art pomodoro timer. Works on any device, no sign-in." />
-<meta name="theme-color" id="metaTheme" content="#16222e" />
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='42' fill='none' stroke='%238fc3e8' stroke-width='10'/%3E%3C/svg%3E" />
+<meta name="description" content="A calm, lofi pomodoro timer with animated scenes. Works on any device, no sign-in." />
+<meta name="theme-color" id="metaTheme" content="#241a2e" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='42' fill='none' stroke='%23ffc078' stroke-width='10'/%3E%3C/svg%3E" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Outfit:wght@200;300;400;500;600&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="style.css" />
 </head>
-<body data-scene="rain">
+<body data-scene="catstudy">
 
-  <!-- living background: gradient + particle/pixel canvas + drifting clouds + vignette -->
+  <!-- living background: photo stage / canvas / clouds / vignette -->
   <div class="bg" aria-hidden="true">
+    <div class="photo-stage" id="photoStage">
+      <img class="stage-blur" id="stageBlur" alt="" aria-hidden="true" />
+      <img class="stage-img" id="stageImg" alt="" aria-hidden="true" />
+    </div>
     <canvas id="sceneCanvas"></canvas>
     <div class="clouds">
       <div class="cloud cloud-1"></div>
@@ -25,22 +29,23 @@
     <div class="vignette"></div>
   </div>
 
-  <!-- ================= SETUP SCREEN ================= -->
+  <!-- ================= SETUP: seamless floating options ================= -->
   <main id="setup" class="screen">
-    <div class="card">
-      <header class="head">
-        <h1 class="brand">pomoted</h1>
-        <p class="tagline">find your focus, softly</p>
-      </header>
 
+    <header class="head">
+      <h1 class="brand">pomoted</h1>
+      <p class="tagline">find your focus, softly</p>
+    </header>
+
+    <section class="float-panel timing">
       <div class="presets">
         <button type="button" class="preset" data-f="25" data-s="5"  data-l="15" data-n="4">classic · 25/5</button>
         <button type="button" class="preset" data-f="50" data-s="10" data-l="30" data-n="3">deep work · 50/10</button>
         <button type="button" class="preset" data-f="15" data-s="3"  data-l="12" data-n="6">sprint · 15/3</button>
       </div>
 
-      <section class="sliders">
-        <div class="slider-row">
+      <div class="sliders">
+        <div class="slider-block">
           <div class="slider-head">
             <label for="focus">Focus</label>
             <output id="focusVal">25 min</output>
@@ -49,7 +54,7 @@
           <div class="ticks" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
         </div>
 
-        <div class="slider-row">
+        <div class="slider-block">
           <div class="slider-head">
             <label for="short">Short break</label>
             <output id="shortVal">5 min</output>
@@ -58,7 +63,7 @@
           <div class="ticks" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
         </div>
 
-        <div class="slider-row">
+        <div class="slider-block">
           <div class="slider-head">
             <label for="long">Long break</label>
             <output id="longVal">15 min</output>
@@ -67,7 +72,7 @@
           <div class="ticks" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
         </div>
 
-        <div class="slider-row">
+        <div class="slider-block">
           <div class="slider-head">
             <label for="sessions">Long break every</label>
             <output id="sessionsVal">4 sessions</output>
@@ -75,73 +80,44 @@
           <input type="range" id="sessions" min="2" max="8" step="1" value="4" />
           <div class="ticks" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
         </div>
-      </section>
+      </div>
+    </section>
 
-      <section class="scenes-sec">
-        <span class="label-like">Ambience</span>
-        <div class="scenes" id="scenes">
-          <button type="button" class="scene" data-scene="pixstudy">
-            <span class="preview p-pixstudy"></span>
-            <span class="name">Sunset Study</span>
-          </button>
-          <button type="button" class="scene" data-scene="pixcafe">
-            <span class="preview p-pixcafe"></span>
-            <span class="name">Evening Café</span>
-          </button>
-          <button type="button" class="scene" data-scene="pixloft">
-            <span class="preview p-pixloft"></span>
-            <span class="name">Rainy Loft</span>
-          </button>
-          <button type="button" class="scene" data-scene="library">
-            <span class="preview p-library"></span>
-            <span class="name">Library</span>
-          </button>
-          <button type="button" class="scene" data-scene="rain">
-            <span class="preview p-rain"></span>
-            <span class="name">Rain</span>
-          </button>
-          <button type="button" class="scene" data-scene="sunset">
-            <span class="preview p-sunset"></span>
-            <span class="name">Sunset</span>
-          </button>
-          <button type="button" class="scene" data-scene="midnight">
-            <span class="preview p-midnight"></span>
-            <span class="name">Stars</span>
-          </button>
-          <button type="button" class="scene" data-scene="ocean">
-            <span class="preview p-ocean"></span>
-            <span class="name">Ocean</span>
-          </button>
-          <button type="button" class="scene" data-scene="cafe">
-            <span class="preview p-cafe"></span>
-            <span class="name">Glow</span>
-          </button>
-          <button type="button" class="scene" data-scene="forest">
-            <span class="preview p-forest"></span>
-            <span class="name">Fireflies</span>
-          </button>
-        </div>
-      </section>
+    <section class="showcase-sec">
+      <div class="showcase">
+        <button type="button" class="arrow arrow-left" id="prevScene" aria-label="Previous theme">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 4.5 8 12l7.5 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="carousel3d" id="carousel"></div>
+        <button type="button" class="arrow arrow-right" id="nextScene" aria-label="Next theme">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 4.5 16 12l-7.5 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+      <div class="scroll-track" id="scrollTrack">
+        <div class="scroll-thumb" id="scrollThumb"></div>
+      </div>
+    </section>
 
+    <div class="bottom-bar">
       <label class="toggle">
         <input type="checkbox" id="sound" checked />
         <span class="track" aria-hidden="true"></span>
-        <span class="toggle-text">Transition chime</span>
+        <span class="toggle-text">chime</span>
       </label>
-
       <button id="start" class="start-btn" type="button">
         <span>Begin session</span>
-        <span class="arrow" aria-hidden="true">&rarr;</span>
+        <span class="arrow-ico" aria-hidden="true">&rarr;</span>
       </button>
-      <p class="hint">tip: open this page on your phone and &ldquo;Add to Home Screen&rdquo;</p>
+      <p class="hint">open on your phone &amp; &ldquo;Add to Home Screen&rdquo;</p>
     </div>
+
   </main>
 
-  <!-- ================= SESSION SCREEN ================= -->
+  <!-- ================= SESSION ================= -->
   <main id="session" class="screen hidden">
     <div class="halo" aria-hidden="true"></div>
 
-      <div class="timer-wrap">
+    <div class="timer-wrap">
       <div class="brand-mini">pomoted</div>
       <div class="phase-label" id="phaseLabel">Focus</div>
 
@@ -179,7 +155,6 @@
     </div>
   </main>
 
-  <!-- phase transition toast -->
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
   <script src="app.js"></script>
