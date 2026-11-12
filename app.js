@@ -25,6 +25,14 @@
   const SCENE_COLORS = {
     rain: '#16222e', cafe: '#241609', sunset: '#2a1a4a',
     ocean: '#0f2027', midnight: '#05060f', forest: '#0b3d2e',
+    'photo-study': '#2b1a14', 'photo-cafe': '#1c2340', 'photo-loft': '#2c1e3a',
+  };
+
+  // user's photo backgrounds (served from the repo's bg/ folder)
+  const PHOTO_SCENES = {
+    'photo-study': 'bg/study-sunset.jpg',
+    'photo-cafe':  'bg/cafe-anime.jpg',
+    'photo-loft':  'bg/lofi-scene.jpg',
   };
 
   /* ---------------- elements ---------------- */
@@ -43,6 +51,7 @@
   const soundInput = $('#sound');
   const metaTheme  = $('#metaTheme');
   const bgEl       = document.querySelector('.bg');
+  const photoLayer = $('#photoLayer');
   const sliders = {
     focus: $('#focus'), short: $('#short'),
     long: $('#long'),   sessions: $('#sessions'),
@@ -544,8 +553,24 @@
   };
 
   function initSceneParticles() {
-    if (!ctx || !sceneDefs[settings.scene]) return;
-    sceneName = settings.scene;
+    const name = settings.scene;
+
+    // photo scene: swap in the breathing photo, pause particles
+    if (PHOTO_SCENES[name]) {
+      particles = [];
+      if (ctx) ctx.clearRect(0, 0, W, H);
+      if (photoLayer) {
+        photoLayer.style.backgroundImage = 'url("' + PHOTO_SCENES[name] + '")';
+        photoLayer.classList.add('visible');
+        if (!reduced) photoLayer.classList.add('breathe');
+      }
+      return;
+    }
+
+    // particle scene: remove photo, start particles
+    if (photoLayer) photoLayer.classList.remove('visible', 'breathe');
+    if (!ctx || !sceneDefs[name]) return;
+    sceneName = name;
     sceneDefs[sceneName].init();
   }
 

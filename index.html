@@ -14,9 +14,15 @@
 </head>
 <body data-scene="rain">
 
-  <!-- living background: drifting gradient + particle canvas + vignette -->
+  <!-- living background: gradient + photo + particle canvas + drifting clouds + vignette -->
   <div class="bg" aria-hidden="true">
+    <div class="photo-layer" id="photoLayer"></div>
     <canvas id="sceneCanvas"></canvas>
+    <div class="clouds">
+      <div class="cloud cloud-1"></div>
+      <div class="cloud cloud-2"></div>
+      <div class="cloud cloud-3"></div>
+    </div>
     <div class="vignette"></div>
   </div>
 
@@ -88,6 +94,24 @@
           <button type="button" class="scene" data-scene="forest">
             <span class="preview p-forest"></span>
             <span class="name">Firefly Grove</span>
+          </button>
+        </div>
+      </section>
+
+      <section class="scenes-sec">
+        <span class="label-like">Your photos</span>
+        <div class="scenes">
+          <button type="button" class="scene" data-scene="photo-study">
+            <span class="preview p-photo p-photo-study"></span>
+            <span class="name">Study Sunset</span>
+          </button>
+          <button type="button" class="scene" data-scene="photo-cafe">
+            <span class="preview p-photo p-photo-cafe"></span>
+            <span class="name">Evening Café</span>
+          </button>
+          <button type="button" class="scene" data-scene="photo-loft">
+            <span class="preview p-photo p-photo-loft"></span>
+            <span class="name">City Loft</span>
           </button>
         </div>
       </section>

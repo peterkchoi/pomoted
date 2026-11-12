@@ -50,6 +50,26 @@ body[data-scene="forest"] {
   --card: rgba(6, 24, 18, .5);
 }
 
+/* photo scenes — palettes tuned to each image */
+body[data-scene="photo-study"] {
+  --c1: #2b1a14; --c2: #6b3a2a; --c3: #b8663f;
+  --fg: #fdf0e4; --muted: rgba(253, 240, 228, .64);
+  --accent: #ffb27a; --accent2: #ffd9ad; --on-accent: #3a2113;
+  --card: rgba(30, 17, 12, .5);
+}
+body[data-scene="photo-cafe"] {
+  --c1: #1c2340; --c2: #8a4a2c; --c3: #d98a4a;
+  --fg: #fdf1e3; --muted: rgba(253, 241, 227, .64);
+  --accent: #ffc078; --accent2: #ffe0b0; --on-accent: #33200f;
+  --card: rgba(26, 20, 24, .5);
+}
+body[data-scene="photo-loft"] {
+  --c1: #2c1e3a; --c2: #a34a5e; --c3: #e88a5f;
+  --fg: #fdeee6; --muted: rgba(253, 238, 230, .64);
+  --accent: #ffab91; --accent2: #ffd0b8; --on-accent: #3c2418;
+  --card: rgba(32, 20, 30, .5);
+}
+
 html, body { height: 100%; }
 
 body {
@@ -98,6 +118,43 @@ body {
     linear-gradient(to bottom, rgba(0, 0, 0, .16), transparent 22%, transparent 74%, rgba(0, 0, 0, .22));
 }
 
+/* ---------- photo scenes: ambient breathing ---------- */
+.photo-layer {
+  position: absolute;
+  inset: -6%; /* bleed so the scale never reveals edges */
+  background-size: cover;
+  background-position: center;
+  opacity: 0;
+  transform: scale(1.02);
+  transition: opacity 1.2s ease;
+  will-change: transform, filter;
+  filter: saturate(.96) brightness(.88);
+}
+.photo-layer.visible { opacity: 1; }
+.photo-layer.breathe {
+  animation: photoBreathe 16s ease-in-out infinite;
+}
+@keyframes photoBreathe {
+  0%, 100% { transform: scale(1.02) translate(0, 0);       filter: saturate(.96) brightness(.88); }
+  50%      { transform: scale(1.09) translate(-1%, -.8%);  filter: saturate(1.06) brightness(.96); }
+}
+
+/* ---------- drifting cloud wisps over everything ---------- */
+.clouds { position: absolute; inset: 0; overflow: hidden; }
+.cloud {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(255, 255, 255, .16), transparent 70%);
+  filter: blur(38px);
+  will-change: transform;
+}
+.cloud-1 { width: 60vmax; height: 26vmax; top: 6%;  left: -20%; animation: cloudDrift1 74s ease-in-out infinite alternate; }
+.cloud-2 { width: 52vmax; height: 22vmax; top: 44%; right: -24%; animation: cloudDrift2 92s ease-in-out infinite alternate; }
+.cloud-3 { width: 44vmax; height: 20vmax; bottom: -6%; left: 6%; animation: cloudDrift3 66s ease-in-out infinite alternate; }
+@keyframes cloudDrift1 { from { transform: translateX(0) scale(1); }     to { transform: translateX(46vw) scale(1.14); } }
+@keyframes cloudDrift2 { from { transform: translateX(0) scale(1.06); }  to { transform: translateX(-40vw) scale(.96); } }
+@keyframes cloudDrift3 { from { transform: translateX(0) scale(1); }     to { transform: translateX(30vw) scale(1.1); } }
+
 /* ---------- screens & transitions ---------- */
 .screen {
   min-height: 100vh;
@@ -123,14 +180,15 @@ body {
   overflow-y: auto;
   scrollbar-width: thin;
   background: var(--card);
-  border: 1px solid rgba(255, 255, 255, .16);
-  border-radius: 30px;
-  padding: 38px 34px 26px;
-  backdrop-filter: blur(22px) saturate(1.35);
-  -webkit-backdrop-filter: blur(22px) saturate(1.35);
+  border: 1px solid rgba(255, 255, 255, .18);
+  border-radius: 36px;
+  padding: 40px 36px 28px;
+  backdrop-filter: blur(30px) saturate(1.25) brightness(1.05);
+  -webkit-backdrop-filter: blur(30px) saturate(1.25) brightness(1.05);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, .14),
-    0 26px 70px rgba(0, 0, 0, .38);
+    inset 0 1px 0 rgba(255, 255, 255, .18),
+    inset 0 0 60px rgba(255, 255, 255, .03),
+    0 30px 80px rgba(0, 0, 0, .35);
   text-align: center;
   transition: background .7s ease;
 }
@@ -270,7 +328,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   padding: 0;
   overflow: hidden;
   border: 2px solid rgba(255, 255, 255, .12);
-  border-radius: 16px;
+  border-radius: 20px;
   background: rgba(0, 0, 0, .2);
   font: inherit;
   color: inherit;
@@ -360,6 +418,20 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   to   { background-position: 60% 70%, 20% 60%, 40% 30%, 0 0; }
 }
 
+/* photo previews — tiny breathing thumbnails of the real images */
+.p-photo {
+  background-size: 130%;
+  background-position: center;
+  animation: photoPeek 9s ease-in-out infinite;
+}
+.p-photo-study { background-image: url("bg/study-sunset.jpg"); }
+.p-photo-cafe  { background-image: url("bg/cafe-anime.jpg"); }
+.p-photo-loft  { background-image: url("bg/lofi-scene.jpg"); background-position: center 30%; }
+@keyframes photoPeek {
+  0%, 100% { background-size: 130%; background-position: 50% 50%; filter: saturate(.95) brightness(.92); }
+  50%      { background-size: 148%; background-position: 45% 42%; filter: saturate(1.08) brightness(1); }
+}
+
 .scene .name {
   display: block;
   padding: 8px 4px 9px;
@@ -410,7 +482,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .start-btn {
   width: 100%;
   margin-top: 22px;
-  padding: 16px;
+  padding: 17px;
   font: inherit;
   font-size: 1.05rem;
   font-weight: 500;
@@ -418,7 +490,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   color: var(--on-accent);
   background: linear-gradient(135deg, var(--accent), var(--accent2));
   border: none;
-  border-radius: 18px;
+  border-radius: 999px;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -448,19 +520,19 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .halo {
   position: absolute;
   top: 50%; left: 50%;
-  width: min(88vw, 540px);
+  width: min(95vw, 600px);
   aspect-ratio: 1;
   transform: translate(-50%, -50%);
   border-radius: 50%;
-  background: radial-gradient(circle, var(--accent) 0%, transparent 62%);
-  opacity: .14;
-  filter: blur(40px);
-  animation: breathe 7s ease-in-out infinite;
+  background: radial-gradient(circle, var(--accent) 0%, transparent 58%);
+  opacity: .15;
+  filter: blur(60px);
+  animation: breathe 9s ease-in-out infinite;
   transition: background .8s ease;
 }
 @keyframes breathe {
   0%, 100% { transform: translate(-50%, -50%) scale(1);    opacity: .11; }
-  50%      { transform: translate(-50%, -50%) scale(1.08); opacity: .18; }
+  50%      { transform: translate(-50%, -50%) scale(1.1);  opacity: .2; }
 }
 #session.paused .halo { animation-play-state: paused; opacity: .07; }
 
@@ -636,7 +708,7 @@ body[data-phase="short"] .halo,   body[data-phase="long"] .halo {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bg, .scene .preview, .halo, .dot.current { animation: none; }
+  .bg, .scene .preview, .halo, .dot.current, .cloud, .photo-layer { animation: none !important; }
   .screen { transition: opacity .3s ease; transform: none; filter: none; }
   .ring-fg { transition: none; }
 }
