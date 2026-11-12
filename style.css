@@ -51,29 +51,29 @@ body[data-scene="forest"] {
 }
 
 /* pixel-art scenes — palettes tuned to each diorama */
+body[data-scene="pixstudy"] {
+  --c1: #2b1a10; --c2: #6b3a22; --c3: #b86238;
+  --fg: #fdf0e2; --muted: rgba(253, 240, 226, .64);
+  --accent: #ffb27a; --accent2: #ffd9ad; --on-accent: #3a2113;
+  --card: rgba(28, 16, 10, .5);
+}
 body[data-scene="pixcafe"] {
-  --c1: #1a0f0a; --c2: #3a2412; --c3: #6b4226;
-  --fg: #f9ecd8; --muted: rgba(249, 236, 216, .62);
-  --accent: #ffb066; --accent2: #ffd9a3; --on-accent: #331c08;
-  --card: rgba(24, 14, 8, .52);
+  --c1: #141a34; --c2: #6b3a20; --c3: #c97a3a;
+  --fg: #fdf1e3; --muted: rgba(253, 241, 227, .64);
+  --accent: #ffc078; --accent2: #ffe0b0; --on-accent: #33200f;
+  --card: rgba(18, 18, 26, .5);
+}
+body[data-scene="pixloft"] {
+  --c1: #33182a; --c2: #a34a52; --c3: #e8805a;
+  --fg: #fdeee6; --muted: rgba(253, 238, 230, .64);
+  --accent: #ffab91; --accent2: #ffd0b8; --on-accent: #3c2418;
+  --card: rgba(30, 18, 26, .5);
 }
 body[data-scene="library"] {
   --c1: #12211a; --c2: #26402e; --c3: #3f5c3a;
   --fg: #eef4e4; --muted: rgba(238, 244, 228, .62);
   --accent: #e8c37a; --accent2: #f5dfa8; --on-accent: #2e2110;
   --card: rgba(14, 24, 18, .52);
-}
-body[data-scene="cloudsea"] {
-  --c1: #241a4e; --c2: #b04a6e; --c3: #f29a5c;
-  --fg: #fff2e8; --muted: rgba(255, 242, 232, .64);
-  --accent: #ffcf8a; --accent2: #ffab7e; --on-accent: #40220f;
-  --card: rgba(30, 18, 42, .46);
-}
-body[data-scene="bedroom"] {
-  --c1: #12162e; --c2: #2a2f52; --c3: #4a4470;
-  --fg: #e9ecfa; --muted: rgba(233, 236, 250, .58);
-  --accent: #a5b8ff; --accent2: #d0c8ff; --on-accent: #161a3a;
-  --card: rgba(14, 16, 34, .52);
 }
 
 html, body { height: 100%; }
@@ -478,46 +478,33 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   to   { background-position: 60% 70%, 20% 60%, 40% 30%, 0 0; }
 }
 
-/* pixel previews — dithered, chunky mini scenes */
-.p-pixcafe, .p-library, .p-cloudsea, .p-bedroom {
+/* pixel previews — the actual pixel-art images, breathing gently */
+.p-pixstudy, .p-pixcafe, .p-pixloft {
   image-rendering: pixelated;
-  animation: previewDrift 8s ease-in-out infinite;
+  background-size: cover;
+  background-position: center;
+  animation: photoPeek 9s ease-in-out infinite;
 }
-@keyframes previewDrift {
-  0%   { background-position: 0% 40%, 0% 40%, 0% 40%, 0 0; }
-  50%  { background-position: 60% 60%, 60% 60%, 60% 60%, 0 0; }
-  100% { background-position: 0% 40%, 0% 40%, 0% 40%, 0 0; }
-}
-.p-pixcafe {
-  background:
-    repeating-linear-gradient(90deg, transparent 0 9px, rgba(255, 176, 102, .28) 9px 12px),
-    radial-gradient(circle at 24% 34%, rgba(255, 176, 102, .85), transparent 26%),
-    radial-gradient(circle at 74% 30%, rgba(255, 209, 150, .5), transparent 30%),
-    linear-gradient(180deg, #1a0f0a 20%, #3a2412 55%, #6b4226);
-  background-size: 100% 100%, 180% 180%, 180% 180%, 100% 100%;
+.p-pixstudy { background-image: url("bg/pix-study.png"); }
+.p-pixcafe  { background-image: url("bg/pix-cafe.png"); }
+.p-pixloft  { background-image: url("bg/pix-loft.png"); }
+@keyframes photoPeek {
+  0%, 100% { background-size: 108%; filter: saturate(.98) brightness(.95); }
+  50%      { background-size: 124%; filter: saturate(1.1) brightness(1.02); }
 }
 .p-library {
+  image-rendering: pixelated;
   background:
     repeating-linear-gradient(90deg, #26402e 0 7px, #1c3224 7px 9px, #3f5c3a 9px 12px, #12211a 12px 20px),
     linear-gradient(180deg, #12211a, #26402e);
   background-size: 100% 68%, 100% 100%;
   background-position: 0 100%, 0 0;
   background-repeat: no-repeat;
+  animation: previewGlow 6s ease-in-out infinite;
 }
-.p-cloudsea {
-  background:
-    radial-gradient(circle at 50% 26%, rgba(255, 226, 160, .95), rgba(255, 170, 110, .55) 22%, transparent 42%),
-    repeating-linear-gradient(180deg, transparent 0 12px, rgba(255, 200, 160, .22) 12px 17px),
-    linear-gradient(180deg, #241a4e 0%, #b04a6e 58%, #f29a5c 100%);
-  background-size: 170% 170%, 100% 100%, 100% 100%;
-}
-.p-bedroom {
-  background:
-    repeating-linear-gradient(112deg, transparent 0 5px, rgba(165, 184, 255, .3) 5px 6px),
-    radial-gradient(circle at 78% 70%, rgba(255, 209, 150, .55), transparent 30%),
-    linear-gradient(180deg, #12162e, #4a4470);
-  background-size: 44px 220%, 150% 150%, 100% 100%;
-  animation: rainSlide 1.2s linear infinite, previewDrift 9s ease-in-out infinite;
+@keyframes previewGlow {
+  0%, 100% { filter: brightness(.94); }
+  50%      { filter: brightness(1.08); }
 }
 
 .scene .name {
@@ -632,6 +619,15 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   transition: opacity .4s ease;
 }
 #session.paused .timer-wrap { opacity: .5; }
+
+.brand-mini {
+  font-family: var(--font-serif);
+  font-size: .95rem;
+  letter-spacing: .42em;
+  margin-right: -.42em;
+  color: var(--muted);
+  opacity: .65;
+}
 
 .phase-label {
   font-family: var(--font-serif);

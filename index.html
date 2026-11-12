@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>Stillpoint · Pomodoro Timer</title>
-<meta name="description" content="A calm, cinematic pomodoro timer with living ambient scenes. Works on any device, no sign-in." />
+<title>pomoted · lofi pomodoro timer</title>
+<meta name="description" content="A calm, lofi pixel-art pomodoro timer. Works on any device, no sign-in." />
 <meta name="theme-color" id="metaTheme" content="#16222e" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='42' fill='none' stroke='%238fc3e8' stroke-width='10'/%3E%3C/svg%3E" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -29,7 +29,7 @@
   <main id="setup" class="screen">
     <div class="card">
       <header class="head">
-        <h1 class="brand">stillpoint</h1>
+        <h1 class="brand">pomoted</h1>
         <p class="tagline">find your focus, softly</p>
       </header>
 
@@ -80,21 +80,21 @@
       <section class="scenes-sec">
         <span class="label-like">Ambience</span>
         <div class="scenes" id="scenes">
+          <button type="button" class="scene" data-scene="pixstudy">
+            <span class="preview p-pixstudy"></span>
+            <span class="name">Sunset Study</span>
+          </button>
           <button type="button" class="scene" data-scene="pixcafe">
             <span class="preview p-pixcafe"></span>
-            <span class="name">Pixel Café</span>
+            <span class="name">Evening Café</span>
+          </button>
+          <button type="button" class="scene" data-scene="pixloft">
+            <span class="preview p-pixloft"></span>
+            <span class="name">Rainy Loft</span>
           </button>
           <button type="button" class="scene" data-scene="library">
             <span class="preview p-library"></span>
             <span class="name">Library</span>
-          </button>
-          <button type="button" class="scene" data-scene="cloudsea">
-            <span class="preview p-cloudsea"></span>
-            <span class="name">Above the Clouds</span>
-          </button>
-          <button type="button" class="scene" data-scene="bedroom">
-            <span class="preview p-bedroom"></span>
-            <span class="name">Rainy Bedroom</span>
           </button>
           <button type="button" class="scene" data-scene="rain">
             <span class="preview p-rain"></span>
@@ -141,7 +141,8 @@
   <main id="session" class="screen hidden">
     <div class="halo" aria-hidden="true"></div>
 
-    <div class="timer-wrap">
+      <div class="timer-wrap">
+      <div class="brand-mini">pomoted</div>
       <div class="phase-label" id="phaseLabel">Focus</div>
 
       <div class="ring">
