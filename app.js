@@ -13,8 +13,11 @@
   const DEFAULTS = { focus: 25, short: 5, long: 15, sessions: 4, scene: 'rain', sound: true };
   const STORE_KEY = 'stillpoint-settings';
 
-  // migrate v1 theme names to v2 scene ids
-  const SCENE_MIGRATION = { dawn: 'sunset', dusk: 'sunset', mist: 'rain' };
+  // migrate old theme/photo ids to current scene ids
+  const SCENE_MIGRATION = {
+    dawn: 'sunset', dusk: 'sunset', mist: 'rain',
+    'photo-study': 'cloudsea', 'photo-cafe': 'pixcafe', 'photo-loft': 'bedroom',
+  };
 
   const PHASE_META = {
     focus: { label: 'focus',       toast: 'Time to focus' },
@@ -25,14 +28,7 @@
   const SCENE_COLORS = {
     rain: '#16222e', cafe: '#241609', sunset: '#2a1a4a',
     ocean: '#0f2027', midnight: '#05060f', forest: '#0b3d2e',
-    'photo-study': '#2b1a14', 'photo-cafe': '#1c2340', 'photo-loft': '#2c1e3a',
-  };
-
-  // user's photo backgrounds (served from the repo's bg/ folder)
-  const PHOTO_SCENES = {
-    'photo-study': 'bg/study-sunset.jpg',
-    'photo-cafe':  'bg/cafe-anime.jpg',
-    'photo-loft':  'bg/lofi-scene.jpg',
+    pixcafe: '#1a0f0a', library: '#12211a', cloudsea: '#241a4e', bedroom: '#12162e',
   };
 
   /* ---------------- elements ---------------- */
@@ -51,7 +47,6 @@
   const soundInput = $('#sound');
   const metaTheme  = $('#metaTheme');
   const bgEl       = document.querySelector('.bg');
-  const photoLayer = $('#photoLayer');
   const sliders = {
     focus: $('#focus'), short: $('#short'),
     long: $('#long'),   sessions: $('#sessions'),
@@ -147,6 +142,25 @@
     sliders[key].addEventListener('change', saveSettings);
   });
 
+  // preset chips: classic / deep work / sprint
+  $$('.preset').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      settings.focus    = parseInt(btn.dataset.f, 10);
+      settings.short    = parseInt(btn.dataset.s, 10);
+      settings.long     = parseInt(btn.dataset.l, 10);
+      settings.sessions = parseInt(btn.dataset.n, 10);
+      sliders.focus.value    = settings.focus;
+      sliders.short.value    = settings.short;
+      sliders.long.value     = settings.long;
+      sliders.sessions.value = settings.sessions;
+      Object.keys(sliders).forEach((k) => syncSlider(k));
+      saveSettings();
+      btn.classList.remove('flash');
+      void btn.offsetWidth;
+      btn.classList.add('flash');
+    });
+  });
+
   /* ---------------- scene picker ---------------- */
   $$('.scene').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -167,7 +181,7 @@
         document.body.dataset.scene = name;
         initSceneParticles();
         bgEl.classList.remove('swap');
-      }, 380);
+      }, 600);
     } else {
       document.body.dataset.scene = name;
       initSceneParticles();
@@ -552,26 +566,294 @@
     },
   };
 
+  /* ---------------- 8-bit pixel diorama engine ---------------- */
+  // Scenes are drawn tiny (PIX_H px tall) then upscaled with smoothing off.
+  const PIX_H = 108;
+  let pixW = 192, pixH = PIX_H;
+  let pixScene = null;
+  const pixBuf = document.createElement('canvas');
+  const pctx = pixBuf.getContext('2d');
+
+  function sizePixCanvas() {
+    pixH = PIX_H;
+    pixW = Math.max(96, Math.min(240, Math.round(PIX_H * (W / Math.max(1, H)))));
+    pixBuf.width = pixW;
+    pixBuf.height = pixH;
+  }
+
+  function drawPixFrame(t) {
+    if (!pixScene) return;
+    pctx.clearRect(0, 0, pixW, pixH);
+    pixScene.draw(pctx, pixW, pixH, t);
+    // blit upscaled, chunky
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, W, H);
+    ctx.drawImage(pixBuf, 0, 0, pixW, pixH, 0, 0, W, H);
+    ctx.restore();
+  }
+
+  // tiny rect helper
+  function R(c, x, y, w, h, col) {
+    c.fillStyle = col;
+    c.fillRect(x | 0, y | 0, Math.max(1, w | 0), Math.max(1, h | 0));
+  }
+
+  function circleRows(c, cx, cy, r, col) {
+    c.fillStyle = col;
+    for (let y = -r; y <= r; y++) {
+      const w = Math.floor(Math.sqrt(r * r - y * y));
+      c.fillRect((cx - w) | 0, (cy + y) | 0, w * 2, 1);
+    }
+  }
+
+  const PIXEL_SCENES = {
+    /* cozy study café: warm lamps, counter, window to dusk street */
+    pixcafe: {
+      build() { this.t = 0; },
+      draw(c, w, h, t) {
+        // wall
+        R(c, 0, 0, w, h, '#1a0f0a');
+        R(c, 0, 0, w, h * 0.62, '#2a1a10');
+        // floor planks
+        R(c, 0, h * 0.62, w, h * 0.38, '#3a2412');
+        for (let i = 0; i < w; i += 8) R(c, i, h * 0.62, 1, h * 0.38, '#2e1c0e');
+        // window (dusk street outside)
+        const wx = w * 0.62, wy = h * 0.14, ww = w * 0.3, wh = h * 0.36;
+        R(c, wx - 2, wy - 2, ww + 4, wh + 4, '#120a06');
+        R(c, wx, wy, ww, wh, '#3a2a4e');
+        R(c, wx, wy + wh * 0.55, ww, wh * 0.45, '#54325a'); // sunset street glow
+        R(c, wx + ww * 0.15, wy + wh * 0.25, 3, 3, '#ffd98a'); // street lamp
+        R(c, wx + ww * 0.7, wy + wh * 0.4, 2, 2, '#ffd98a');
+        R(c, wx + ww / 2 - 1, wy, 2, wh, '#120a06'); // mullion
+        R(c, wx, wy + wh / 2 - 1, ww, 2, '#120a06');
+        // counter
+        R(c, 0, h * 0.55, w * 0.56, h * 0.1, '#4a2c16');
+        R(c, 0, h * 0.55, w * 0.56, 2, '#6b4226');
+        R(c, w * 0.05, h * 0.5, 5, 5, '#d9c8a8');  // mug
+        R(c, w * 0.3, h * 0.51, 4, 4, '#c98a5a');   // mug
+        // hanging lamp + glow
+        const lx = w * 0.22;
+        R(c, lx, 0, 2, h * 0.12, '#0e0805');
+        R(c, lx - 4, h * 0.12, 10, 5, '#553218');
+        const flick = 0.85 + 0.15 * Math.sin(t * 7.3) * Math.sin(t * 3.1);
+        circleRows(c, lx + 1, h * 0.19, 9, 'rgba(255,176,102,' + (0.28 * flick).toFixed(3) + ')');
+        circleRows(c, lx + 1, h * 0.19, 4, 'rgba(255,209,150,' + (0.55 * flick).toFixed(3) + ')');
+        R(c, lx - 1, h * 0.16, 4, 3, '#ffd98a');
+        // steam from mugs (animated)
+        const sx = w * 0.05 + 2, sx2 = w * 0.3 + 1;
+        for (let i = 0; i < 3; i++) {
+          const ph = (t * 0.5 + i * 0.33) % 1;
+          const yy = h * 0.48 - ph * 8;
+          const xx = sx + Math.sin(ph * 6.3 + i) * 2;
+          c.globalAlpha = 0.5 * (1 - ph);
+          R(c, xx, yy, 1, 2, '#f5e6d0');
+          const xx2 = sx2 + Math.cos(ph * 5.1 + i) * 2;
+          R(c, xx2, yy + 2, 1, 2, '#f5e6d0');
+        }
+        c.globalAlpha = 1;
+        // string of warm bulbs top-left
+        for (let i = 0; i < 5; i++) {
+          const bx = w * 0.06 + i * w * 0.08;
+          const by = h * 0.08 + Math.sin(i * 1.2) * 3;
+          const tw = 0.6 + 0.4 * Math.sin(t * 2 + i * 1.7);
+          R(c, bx, by, 1, 2, '#0e0805');
+          circleRows(c, bx, by + 3, 2, 'rgba(255,190,110,' + (0.8 * tw).toFixed(3) + ')');
+        }
+      },
+    },
+
+    /* hushed library: shelves, ladder, reading lamp, dust motes */
+    library: {
+      build(w, h) {
+        this.t = 0;
+        // pre-randomize book rows so they don't flicker
+        this.rows = [];
+        const shelfTop = h * 0.12, shelfH = h * 0.16;
+        for (let s = 0; s < 4; s++) {
+          const books = [];
+          let x = 4;
+          while (x < w * 0.62 - 6) {
+            const bw = 2 + Math.floor(Math.random() * 3);
+            const bh = shelfH * 0.55 + Math.random() * shelfH * 0.3;
+            const cols = ['#7a4a3a', '#a8763e', '#5c7a4a', '#4a5e7a', '#8a4a56', '#c2a86a', '#6a4a7a'];
+            books.push({ x, w: bw, h: bh, col: cols[Math.floor(Math.random() * cols.length)] });
+            x += bw + 1;
+          }
+          this.rows.push({ y: shelfTop + s * (shelfH + 4), books });
+        }
+        this.motes = [];
+        for (let i = 0; i < 14; i++) {
+          this.motes.push({ x: Math.random() * w, y: Math.random() * h, ph: Math.random() * 6.3 });
+        }
+      },
+      draw(c, w, h, t) {
+        R(c, 0, 0, w, h, '#101d16');
+        R(c, 0, 0, w, h * 0.7, '#18281e');
+        R(c, 0, h * 0.7, w, h * 0.3, '#0e1a12');
+        // bookshelf frame
+        R(c, 2, h * 0.1, w * 0.62 + 4, h * 0.72, '#241408');
+        R(c, 4, h * 0.12, w * 0.62, h * 0.68, '#160e06');
+        this.rows.forEach((row) => {
+          row.books.forEach((b) => R(c, b.x, row.y + (h * 0.12 - b.h) * 0.4, b.w, b.h, b.col));
+          R(c, 4, row.y + h * 0.1, w * 0.62, 2, '#241408'); // shelf board
+        });
+        // window right side, moonlight
+        const wx = w * 0.74, wy = h * 0.14, ww = w * 0.2, wh = h * 0.4;
+        R(c, wx - 2, wy - 2, ww + 4, wh + 4, '#0c1208');
+        R(c, wx, wy, ww, wh, '#24304a');
+        circleRows(c, wx + ww * 0.68, wy + wh * 0.28, 5, '#e8ecf7');
+        R(c, wx + ww / 2 - 1, wy, 2, wh, '#0c1208');
+        // reading lamp glow (breathing)
+        const breathe = 0.5 + 0.5 * Math.sin(t * 0.9);
+        circleRows(c, w * 0.82, h * 0.78, 12, 'rgba(232,195,122,' + (0.10 + 0.08 * breathe).toFixed(3) + ')');
+        circleRows(c, w * 0.82, h * 0.78, 6,  'rgba(245,223,168,' + (0.22 + 0.12 * breathe).toFixed(3) + ')');
+        R(c, w * 0.82 - 2, h * 0.74, 5, 4, '#f5dfa8');
+        R(c, w * 0.82 - 1, h * 0.78, 3, h * 0.06, '#241408'); // stand
+        // dust motes drifting in the light
+        this.motes.forEach((m) => {
+          const yy = (m.y + t * 2) % h;
+          const xx = m.x + Math.sin(t * 0.5 + m.ph) * 6;
+          c.globalAlpha = 0.25 + 0.2 * Math.sin(t + m.ph);
+          R(c, xx, yy, 1, 1, '#f5e6c0');
+        });
+        c.globalAlpha = 1;
+      },
+    },
+
+    /* sunset above a sea of clouds, birds passing */
+    cloudsea: {
+      build(w, h) {
+        this.clouds = [];
+        for (let i = 0; i < 7; i++) {
+          this.clouds.push({
+            x: Math.random() * w, y: h * 0.58 + Math.random() * h * 0.34,
+            w: 26 + Math.random() * 40, v: 1.2 + Math.random() * 1.6,
+            tint: Math.random() < 0.5 ? '#f7b08a' : '#ffd0a0',
+          });
+        }
+        this.birds = [];
+      },
+      draw(c, w, h, t) {
+        // sky bands (generous overlap so rounding never leaves gaps)
+        const bands = ['#241a4e', '#3a2060', '#5c2c68', '#8e3a68', '#b04a6e', '#d96a62', '#f29a5c'];
+        bands.forEach((col, i) => R(c, 0, Math.floor((h * 0.64) * i / bands.length), w, Math.ceil((h * 0.64) / bands.length) + 2, col));
+        // sun with slight shimmer
+        const pulse = 1 + 0.03 * Math.sin(t * 1.4);
+        circleRows(c, w * 0.5, h * 0.34, 13 * pulse, 'rgba(255,220,150,0.25)');
+        circleRows(c, w * 0.5, h * 0.34, 9, '#ffe2a0');
+        circleRows(c, w * 0.5, h * 0.34, 6, '#fff3cf');
+        // sun stripes (classic 8-bit sun)
+        R(c, w * 0.5 - 9, h * 0.34 + 2, 18, 1, '#d96a62');
+        R(c, w * 0.5 - 8, h * 0.34 + 5, 16, 1, '#d96a62');
+        // sea of clouds
+        R(c, 0, h * 0.63, w, h * 0.37 + 2, '#e88a6a');
+        R(c, 0, h * 0.63, w, 2, '#ffd0a0');
+        this.clouds.forEach((cl) => {
+          cl.x += cl.v * 0.016 * 8;
+          if (cl.x - cl.w > w) cl.x = -cl.w;
+          R(c, cl.x, cl.y, cl.w, 7, cl.tint);
+          R(c, cl.x + 4, cl.y - 3, cl.w * 0.5, 4, cl.tint);
+          R(c, cl.x + cl.w * 0.6, cl.y - 2, cl.w * 0.3, 3, cl.tint);
+          R(c, cl.x, cl.y, cl.w, 1, '#ffe0bc');
+        });
+        // occasional birds
+        if (Math.random() < 0.004) this.birds.push({ x: -6, y: h * (0.12 + Math.random() * 0.25), v: 14 });
+        this.birds = this.birds.filter((b) => b.x < w + 6);
+        this.birds.forEach((b) => {
+          b.x += b.v * 0.016;
+          const flap = Math.sin(t * 10 + b.x * 0.2) > 0 ? 0 : 1;
+          R(c, b.x, b.y + flap, 2, 1, '#2a1a3e');
+          R(c, b.x - 2, b.y + (flap ? 0 : 1), 2, 1, '#2a1a3e');
+          R(c, b.x + 2, b.y + (flap ? 0 : 1), 2, 1, '#2a1a3e');
+        });
+      },
+    },
+
+    /* rainy bedroom: bed, desk, window with rain, warm lamp */
+    bedroom: {
+      build(w, h) {
+        this.drops = [];
+        for (let i = 0; i < 60; i++) {
+          this.drops.push({
+            x: Math.random(), y: Math.random(),
+            v: 0.5 + Math.random() * 0.4, len: 2 + Math.random() * 3,
+          });
+        }
+      },
+      draw(c, w, h, t) {
+        R(c, 0, 0, w, h, '#12162e');
+        R(c, 0, 0, w, h * 0.66, '#1c2142');
+        R(c, 0, h * 0.66, w, h * 0.34, '#181c38');
+        // big window with rain
+        const wx = w * 0.56, wy = h * 0.12, ww = w * 0.36, wh = h * 0.46;
+        R(c, wx - 3, wy - 3, ww + 6, wh + 6, '#0c0f26');
+        R(c, wx, wy, ww, wh, '#232c50');
+        // distant city lights + moon
+        circleRows(c, wx + ww * 0.76, wy + wh * 0.2, 5, '#e9ecfa');
+        R(c, wx + ww * 0.14, wy + wh * 0.62, 2, 3, '#ffd98a');
+        R(c, wx + ww * 0.3, wy + wh * 0.7, 2, 2, '#ffd98a');
+        R(c, wx + ww * 0.5, wy + wh * 0.58, 2, 3, '#c8d0f0');
+        // rain streaks on window (animated)
+        this.drops.forEach((d) => {
+          d.y += d.v * 0.016 * 2.4;
+          if (d.y > 1) { d.y = 0; d.x = Math.random(); }
+          R(c, wx + d.x * ww, wy + d.y * wh, 1, d.len, '#a5b8ff');
+        });
+        R(c, wx + ww / 2 - 1, wy, 2, wh, '#0c0f26'); // mullion
+        R(c, wx, wy + wh / 2, ww, 2, '#0c0f26');
+        // bed (left)
+        const bx = w * 0.06, by = h * 0.6;
+        R(c, bx, by, w * 0.4, h * 0.12, '#3a3f6e');          // mattress
+        R(c, bx, by + h * 0.1, w * 0.42, h * 0.08, '#262b52'); // base
+        R(c, bx + 2, by - 5, w * 0.12, 6, '#d0c8ff');          // pillow
+        R(c, bx + w * 0.14, by + 2, w * 0.26, h * 0.08, '#565aa0'); // blanket
+        // desk + warm lamp (right of bed)
+        const dx = w * 0.5;
+        R(c, dx - 2, h * 0.62, w * 0.07, 2, '#3a2a1a'); // desktop
+        R(c, dx, h * 0.64, 2, h * 0.06, '#2a2016');      // desk leg
+        R(c, dx + w * 0.05 - 2, h * 0.64, 2, h * 0.06, '#2a2016');
+        R(c, dx + 3, h * 0.59, 1, h * 0.03, '#0c0f26');  // lamp stem
+        const breathe = 0.5 + 0.5 * Math.sin(t * 1.1);
+        circleRows(c, dx + 4, h * 0.58, 8, 'rgba(255,209,150,' + (0.16 + 0.1 * breathe).toFixed(3) + ')');
+        R(c, dx + 2, h * 0.56, 4, 3, '#ffd196');
+        // fairy lights along top
+        for (let i = 0; i < 8; i++) {
+          const fx = w * 0.06 + i * w * 0.06;
+          const fy = h * 0.06 + Math.sin(i * 1.4) * 2;
+          const tw = 0.5 + 0.5 * Math.sin(t * 2.4 + i * 2.1);
+          R(c, fx, fy, 1, 2, '#0c0f26');
+          circleRows(c, fx, fy + 3, 1, 'rgba(208,200,255,' + (0.5 + 0.4 * tw).toFixed(3) + ')');
+        }
+      },
+    },
+  };
+
   function initSceneParticles() {
     const name = settings.scene;
+    if (!ctx) return;
 
-    // photo scene: swap in the breathing photo, pause particles
-    if (PHOTO_SCENES[name]) {
+    // pixel diorama scenes render via the pixel engine
+    if (PIXEL_SCENES[name]) {
       particles = [];
-      if (ctx) ctx.clearRect(0, 0, W, H);
-      if (photoLayer) {
-        photoLayer.style.backgroundImage = 'url("' + PHOTO_SCENES[name] + '")';
-        photoLayer.classList.add('visible');
-        if (!reduced) photoLayer.classList.add('breathe');
-      }
+      pixScene = PIXEL_SCENES[name];
+      sceneName = name;
+      canvas.classList.add('pixelated');
+      sizePixCanvas();
+      pixScene.build(pixW, pixH);
+      if (reduced) drawPixFrame(0); // draw one static frame
       return;
     }
+    canvas.classList.remove('pixelated');
+    pixScene = null;
 
-    // particle scene: remove photo, start particles
-    if (photoLayer) photoLayer.classList.remove('visible', 'breathe');
-    if (!ctx || !sceneDefs[name]) return;
+    if (!sceneDefs[name]) return;
     sceneName = name;
     sceneDefs[sceneName].init();
+    if (reduced && ctx) { // draw one static frame for reduced motion
+      ctx.clearRect(0, 0, W, H);
+      for (let i = 0; i < particles.length; i++) sceneDefs[sceneName].draw(particles[i]);
+    }
   }
 
   function resizeCanvas() {
@@ -582,6 +864,7 @@
     canvas.width  = Math.round(W * dpr);
     canvas.height = Math.round(H * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    sizePixCanvas();
     initSceneParticles();
   }
 
@@ -590,6 +873,13 @@
     if (document.hidden) { lastT = t; return; }
     const dt = Math.min(0.05, (t - lastT) / 1000 || 0.016);
     lastT = t;
+
+    // pixel diorama scenes take over the canvas
+    if (pixScene) {
+      drawPixFrame(t / 1000);
+      return;
+    }
+
     const def = sceneDefs[sceneName];
     if (!def) return;
     ctx.clearRect(0, 0, W, H);

@@ -14,9 +14,8 @@
 </head>
 <body data-scene="rain">
 
-  <!-- living background: gradient + photo + particle canvas + drifting clouds + vignette -->
+  <!-- living background: gradient + particle/pixel canvas + drifting clouds + vignette -->
   <div class="bg" aria-hidden="true">
-    <div class="photo-layer" id="photoLayer"></div>
     <canvas id="sceneCanvas"></canvas>
     <div class="clouds">
       <div class="cloud cloud-1"></div>
@@ -34,6 +33,12 @@
         <p class="tagline">find your focus, softly</p>
       </header>
 
+      <div class="presets">
+        <button type="button" class="preset" data-f="25" data-s="5"  data-l="15" data-n="4">classic · 25/5</button>
+        <button type="button" class="preset" data-f="50" data-s="10" data-l="30" data-n="3">deep work · 50/10</button>
+        <button type="button" class="preset" data-f="15" data-s="3"  data-l="12" data-n="6">sprint · 15/3</button>
+      </div>
+
       <section class="sliders">
         <div class="slider-row">
           <div class="slider-head">
@@ -41,6 +46,7 @@
             <output id="focusVal">25 min</output>
           </div>
           <input type="range" id="focus" min="5" max="90" step="5" value="25" />
+          <div class="ticks" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
         </div>
 
         <div class="slider-row">
@@ -49,6 +55,7 @@
             <output id="shortVal">5 min</output>
           </div>
           <input type="range" id="short" min="1" max="30" step="1" value="5" />
+          <div class="ticks" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
         </div>
 
         <div class="slider-row">
@@ -57,6 +64,7 @@
             <output id="longVal">15 min</output>
           </div>
           <input type="range" id="long" min="5" max="60" step="5" value="15" />
+          <div class="ticks" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
         </div>
 
         <div class="slider-row">
@@ -65,53 +73,52 @@
             <output id="sessionsVal">4 sessions</output>
           </div>
           <input type="range" id="sessions" min="2" max="8" step="1" value="4" />
+          <div class="ticks" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
         </div>
       </section>
 
       <section class="scenes-sec">
         <span class="label-like">Ambience</span>
         <div class="scenes" id="scenes">
+          <button type="button" class="scene" data-scene="pixcafe">
+            <span class="preview p-pixcafe"></span>
+            <span class="name">Pixel Café</span>
+          </button>
+          <button type="button" class="scene" data-scene="library">
+            <span class="preview p-library"></span>
+            <span class="name">Library</span>
+          </button>
+          <button type="button" class="scene" data-scene="cloudsea">
+            <span class="preview p-cloudsea"></span>
+            <span class="name">Above the Clouds</span>
+          </button>
+          <button type="button" class="scene" data-scene="bedroom">
+            <span class="preview p-bedroom"></span>
+            <span class="name">Rainy Bedroom</span>
+          </button>
           <button type="button" class="scene" data-scene="rain">
             <span class="preview p-rain"></span>
-            <span class="name">Rainy Window</span>
-          </button>
-          <button type="button" class="scene" data-scene="cafe">
-            <span class="preview p-cafe"></span>
-            <span class="name">Café Glow</span>
+            <span class="name">Rain</span>
           </button>
           <button type="button" class="scene" data-scene="sunset">
             <span class="preview p-sunset"></span>
-            <span class="name">Sunset Skies</span>
-          </button>
-          <button type="button" class="scene" data-scene="ocean">
-            <span class="preview p-ocean"></span>
-            <span class="name">Ocean Drift</span>
+            <span class="name">Sunset</span>
           </button>
           <button type="button" class="scene" data-scene="midnight">
             <span class="preview p-midnight"></span>
-            <span class="name">Midnight Stars</span>
+            <span class="name">Stars</span>
+          </button>
+          <button type="button" class="scene" data-scene="ocean">
+            <span class="preview p-ocean"></span>
+            <span class="name">Ocean</span>
+          </button>
+          <button type="button" class="scene" data-scene="cafe">
+            <span class="preview p-cafe"></span>
+            <span class="name">Glow</span>
           </button>
           <button type="button" class="scene" data-scene="forest">
             <span class="preview p-forest"></span>
-            <span class="name">Firefly Grove</span>
-          </button>
-        </div>
-      </section>
-
-      <section class="scenes-sec">
-        <span class="label-like">Your photos</span>
-        <div class="scenes">
-          <button type="button" class="scene" data-scene="photo-study">
-            <span class="preview p-photo p-photo-study"></span>
-            <span class="name">Study Sunset</span>
-          </button>
-          <button type="button" class="scene" data-scene="photo-cafe">
-            <span class="preview p-photo p-photo-cafe"></span>
-            <span class="name">Evening Café</span>
-          </button>
-          <button type="button" class="scene" data-scene="photo-loft">
-            <span class="preview p-photo p-photo-loft"></span>
-            <span class="name">City Loft</span>
+            <span class="name">Fireflies</span>
           </button>
         </div>
       </section>
