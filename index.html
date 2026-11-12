@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Stillpoint · Pomodoro Timer</title>
+<meta name="description" content="A calm, minimal pomodoro timer with ambient themes. Works on any device, no sign-in." />
+<meta name="theme-color" id="metaTheme" content="#12232e" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='42' fill='none' stroke='%239ad1e8' stroke-width='10'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body data-theme="ocean">
+
+  <!-- ambient animated background -->
+  <div class="bg" aria-hidden="true">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+  </div>
+
+  <!-- ================= SETUP SCREEN ================= -->
+  <main id="setup" class="screen">
+    <div class="card">
+      <h1 class="brand">stillpoint</h1>
+      <p class="tagline">a calm pomodoro timer</p>
+
+      <div class="fields">
+        <div class="field">
+          <label for="focus">Focus</label>
+          <div class="stepper">
+            <button type="button" data-step="focus" data-dir="-1" aria-label="decrease focus time">&minus;</button>
+            <input id="focus" type="number" min="1" max="180" value="25" inputmode="numeric" />
+            <button type="button" data-step="focus" data-dir="1" aria-label="increase focus time">+</button>
+          </div>
+          <span class="unit">min</span>
+        </div>
+
+        <div class="field">
+          <label for="short">Short break</label>
+          <div class="stepper">
+            <button type="button" data-step="short" data-dir="-1" aria-label="decrease short break">&minus;</button>
+            <input id="short" type="number" min="1" max="60" value="5" inputmode="numeric" />
+            <button type="button" data-step="short" data-dir="1" aria-label="increase short break">+</button>
+          </div>
+          <span class="unit">min</span>
+        </div>
+
+        <div class="field">
+          <label for="long">Long break</label>
+          <div class="stepper">
+            <button type="button" data-step="long" data-dir="-1" aria-label="decrease long break">&minus;</button>
+            <input id="long" type="number" min="1" max="120" value="15" inputmode="numeric" />
+            <button type="button" data-step="long" data-dir="1" aria-label="increase long break">+</button>
+          </div>
+          <span class="unit">min</span>
+        </div>
+
+        <div class="field">
+          <label for="sessions">Long break every</label>
+          <div class="stepper">
+            <button type="button" data-step="sessions" data-dir="-1" aria-label="decrease sessions per round">&minus;</button>
+            <input id="sessions" type="number" min="1" max="12" value="4" inputmode="numeric" />
+            <button type="button" data-step="sessions" data-dir="1" aria-label="increase sessions per round">+</button>
+          </div>
+          <span class="unit">sessions</span>
+        </div>
+      </div>
+
+      <div class="field themes-field">
+        <span class="label-like">Ambience</span>
+        <div class="themes" id="themes">
+          <button type="button" class="swatch" data-theme="ocean">Ocean</button>
+          <button type="button" class="swatch" data-theme="dawn">Dawn</button>
+          <button type="button" class="swatch" data-theme="forest">Forest</button>
+          <button type="button" class="swatch" data-theme="dusk">Dusk</button>
+          <button type="button" class="swatch" data-theme="midnight">Midnight</button>
+          <button type="button" class="swatch" data-theme="mist">Mist</button>
+        </div>
+      </div>
+
+      <label class="toggle">
+        <input type="checkbox" id="sound" checked />
+        <span class="track" aria-hidden="true"></span>
+        <span class="toggle-text">Transition chime</span>
+      </label>
+
+      <button id="start" class="start-btn" type="button">Begin session</button>
+      <p class="hint">tip: open this page on your phone and “Add to Home Screen”</p>
+    </div>
+  </main>
+
+  <!-- ================= SESSION SCREEN ================= -->
+  <main id="session" class="screen hidden">
+    <div class="timer-wrap">
+      <div class="phase-label" id="phaseLabel">Focus</div>
+
+      <div class="ring">
+        <svg viewBox="0 0 300 300" aria-hidden="true">
+          <circle class="ring-bg" cx="150" cy="150" r="140"></circle>
+          <circle class="ring-fg" id="ringFg" cx="150" cy="150" r="140"></circle>
+        </svg>
+        <div class="time" id="time">25:00</div>
+      </div>
+
+      <div class="round-label" id="roundLabel">Round 1 · Session 1 of 4</div>
+      <div class="dots" id="dots" aria-hidden="true"></div>
+    </div>
+
+    <div class="controls" id="controls">
+      <button id="pauseBtn" class="ctrl" type="button" aria-label="Pause or resume">
+        <svg viewBox="0 0 24 24" class="icon-pause" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1.2"/><rect x="14" y="5" width="4" height="14" rx="1.2"/></svg>
+        <svg viewBox="0 0 24 24" class="icon-play hidden" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+      </button>
+      <button id="skipBtn" class="ctrl" type="button" aria-label="Skip to next phase">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l8 6-8 6z"/><rect x="15.5" y="6" width="2.5" height="12" rx="1"/></svg>
+      </button>
+      <button id="endBtn" class="ctrl" type="button" aria-label="End session">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>
+      </button>
+    </div>
+  </main>
+
+  <!-- transition toast -->
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
