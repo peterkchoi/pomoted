@@ -18,7 +18,7 @@
   const SCENE_MIGRATION = {
     dawn: 'sunset', dusk: 'sunset', mist: 'rain',
     'photo-study': 'catstudy', 'photo-cafe': 'wintercafe', 'photo-loft': 'cloudride',
-    cloudsea: 'cloudride', bedroom: 'catstudy', library: 'catstudy',
+    library: 'catstudy', cloudsea: 'cloudride', bedroom: 'catstudy', library: 'catstudy',
     pixstudy: 'catstudy', pixcafe: 'wintercafe', pixloft: 'cloudride',
   };
 
