@@ -34,10 +34,14 @@
 
     <header class="head">
       <h1 class="brand">pomoted</h1>
-        <p class="tagline">let's bombclaat study</p>
+      <p class="tagline">let's bombclaat study</p>
+      <nav class="tabs" id="tabs" role="tablist" aria-label="View">
+        <button class="tab active" id="tabTimer" type="button" role="tab" aria-selected="true">timer</button>
+        <button class="tab" id="tabPlanner" type="button" role="tab" aria-selected="false">planner</button>
+      </nav>
     </header>
 
-    <section class="float-panel timing">
+    <section class="float-panel timing timer-view">
       <div class="presets">
         <button type="button" class="preset" data-f="25" data-s="5"  data-l="15" data-n="4">classic · 25/5</button>
         <button type="button" class="preset" data-f="50" data-s="10" data-l="30" data-n="3">deep work · 50/10</button>
@@ -83,7 +87,7 @@
       </div>
     </section>
 
-    <section class="showcase-sec">
+    <section class="showcase-sec timer-view">
       <div class="showcase">
         <button type="button" class="arrow arrow-left" id="prevScene" aria-label="Previous theme">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 4.5 8 12l7.5 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -98,7 +102,7 @@
       </div>
     </section>
 
-    <div class="bottom-bar">
+    <div class="bottom-bar timer-view">
       <label class="toggle">
         <input type="checkbox" id="sound" checked />
         <span class="track" aria-hidden="true"></span>
@@ -110,6 +114,49 @@
       </button>
       <p class="hint">open on your phone &amp; &ldquo;Add to Home Screen&rdquo;</p>
     </div>
+
+    <!-- ============ PLANNER TAB ============ -->
+    <section id="plannerView" class="planner hidden">
+      <div class="planner-grid">
+
+        <!-- left: full month calendar -->
+        <div class="planner-cal float-panel">
+          <div class="cal-head">
+            <button type="button" class="cal-nav" id="calPrev" aria-label="Previous month">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 4.5 8 12l7.5 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <div class="cal-title" id="calTitle">November 2026</div>
+            <button type="button" class="cal-nav" id="calNext" aria-label="Next month">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 4.5 16 12l-7.5 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+          <div class="cal-dow-row" id="calDowRow"></div>
+          <div class="cal-grid" id="calGrid"></div>
+          <button type="button" class="cal-today-btn" id="calTodayBtn">jump to today</button>
+        </div>
+
+        <!-- right: daily / weekly editor -->
+        <div class="planner-side">
+          <div class="planner-day float-panel">
+            <div class="todo-day-head">
+              <span id="planDayLabel">Today</span>
+              <span class="todo-count" id="planCount"></span>
+            </div>
+            <ul class="todo-list" id="planList"></ul>
+            <form class="todo-add" id="planForm">
+              <input type="text" id="planInput" placeholder="add a task…" autocomplete="off" maxlength="120" />
+              <button type="submit" class="todo-add-btn" aria-label="Add task">+</button>
+            </form>
+          </div>
+
+          <div class="planner-week float-panel">
+            <div class="week-title">this week</div>
+            <div class="week-rows" id="weekRows"></div>
+          </div>
+        </div>
+
+      </div>
+    </section>
 
   </main>
 
@@ -155,11 +202,35 @@
     </div>
   </main>
 
-  <!-- floating tasks button (works on both screens) -->
+  <!-- floating tasks button (timer tab) -->
   <button id="todoBtn" class="todo-btn" type="button" aria-label="Open weekly to-do list">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11.5 11 14l4.5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 4h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11.5 11 14l4.5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 4h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2V6a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     <span class="todo-badge hidden" id="todoBadge">0</span>
   </button>
+
+  <!-- floating mini-timer button (planner tab) -->
+  <button id="miniTimerBtn" class="mini-timer-btn hidden" type="button" aria-label="Pomodoro timer status">
+    <span class="mini-ring" aria-hidden="true">
+      <svg viewBox="0 0 36 36">
+        <circle class="mini-ring-bg" cx="18" cy="18" r="15.5"></circle>
+        <circle class="mini-ring-fg" id="miniRingFg" cx="18" cy="18" r="15.5"></circle>
+      </svg>
+    </span>
+    <span class="mini-time" id="miniTime">25:00</span>
+    <span class="mini-phase" id="miniPhase">focus</span>
+  </button>
+
+  <!-- mini timer status popout -->
+  <div id="miniPop" class="mini-pop hidden" role="status" aria-live="polite">
+    <div class="mini-pop-phase" id="miniPopPhase">focus</div>
+    <div class="mini-pop-time" id="miniPopTime">25:00</div>
+    <div class="mini-pop-sub" id="miniPopSub">round 1 · session 1 of 4</div>
+    <div class="mini-pop-controls">
+      <button id="miniPause" class="mini-ctrl" type="button">pause</button>
+      <button id="miniSkip" class="mini-ctrl" type="button">skip</button>
+    </div>
+    <button id="miniGoTimer" class="mini-go" type="button">open timer &rarr;</button>
+  </div>
 
   <!-- ================= TO-DO POPOUT PANEL ================= -->
   <div id="todoScrim" class="todo-scrim hidden"></div>

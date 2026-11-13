@@ -10,7 +10,7 @@
   const $  = (sel) => document.querySelector(sel);
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
-  const DEFAULTS = { focus: 25, short: 5, long: 15, sessions: 4, scene: 'catstudy', sound: true };
+  const DEFAULTS = { focus: 25, short: 5, long: 15, sessions: 4, scene: 'catstudy', sound: true, tab: 'timer' };
   const STORE_KEY = 'pomoted-settings';
   const OLD_STORE_KEY = 'stillpoint-settings';
 
@@ -80,6 +80,34 @@
   const nextBtn    = $('#nextScene');
   const scrollTrack = $('#scrollTrack');
   const scrollThumb = $('#scrollThumb');
+  // tabs + planner
+  const tabTimerBtn   = $('#tabTimer');
+  const tabPlannerBtn = $('#tabPlanner');
+  const plannerView   = $('#plannerView');
+  const calTitle      = $('#calTitle');
+  const calDowRow     = $('#calDowRow');
+  const calGrid       = $('#calGrid');
+  const calPrev       = $('#calPrev');
+  const calNext       = $('#calNext');
+  const calTodayBtn   = $('#calTodayBtn');
+  const planDayLabel  = $('#planDayLabel');
+  const planCount     = $('#planCount');
+  const planList      = $('#planList');
+  const planForm      = $('#planForm');
+  const planInput     = $('#planInput');
+  const weekRows      = $('#weekRows');
+  // mini timer (planner tab)
+  const miniTimerBtn  = $('#miniTimerBtn');
+  const miniRingFg    = $('#miniRingFg');
+  const miniTime      = $('#miniTime');
+  const miniPhase     = $('#miniPhase');
+  const miniPop       = $('#miniPop');
+  const miniPopPhase  = $('#miniPopPhase');
+  const miniPopTime   = $('#miniPopTime');
+  const miniPopSub    = $('#miniPopSub');
+  const miniPause     = $('#miniPause');
+  const miniSkip      = $('#miniSkip');
+  const miniGo        = $('#miniGo');
   const sliders = {
     focus: $('#focus'), short: $('#short'),
     long: $('#long'),   sessions: $('#sessions'),
@@ -454,6 +482,7 @@
     swapPhaseLabel();
     renderMeta();
     updateUI();
+    updateMiniTimer();
     showToast(PHASE_META[phase].toast);
     chime(phase === 'focus' ? 'focus' : 'rest');
     resetIdleTimer();
@@ -474,6 +503,7 @@
     if (!running || paused) return;
     timeLeft = Math.max(0, Math.round((endAt - Date.now()) / 1000));
     updateUI();
+    updateMiniTimer(); // keep the planner-tab mini timer live
     if (timeLeft <= 0) advance();
   }, 250);
 
@@ -782,6 +812,7 @@
     }
     setPauseIcon();
     sessionEl.classList.toggle('paused', paused);
+    updateMiniTimer();
   }
 
   pauseBtn.addEventListener('click', togglePause);
@@ -798,9 +829,11 @@
     sessionEl.classList.remove('paused', 'idle');
     hideScreen(sessionEl);
     showScreen(setupEl);
+    applyTabVisibility(); // return to whichever tab the user had open
     document.body.dataset.phase = 'focus';
     document.title = 'pomoted · lofi pomodoro timer';
     initSetup();
+    updateMiniTimer();
   }
 
   endBtn.addEventListener('click', endSession);
@@ -955,6 +988,56 @@
     return d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
   }
 
+  // shared task-row builder used by both the popout and the planner
+  function refreshAllTaskViews() {
+    renderTasks();
+    renderWeek();
+    renderBadge();
+    if (activeTab === 'planner') {
+      renderCalendar();
+      renderPlanList();
+      renderWeekRows();
+    }
+  }
+
+  function buildTaskItem(task, dateKey) {
+    const li = document.createElement('li');
+    li.className = 'todo-item' + (task.done ? ' done' : '');
+
+    const check = document.createElement('button');
+    check.type = 'button';
+    check.className = 'task-check';
+    check.setAttribute('aria-label', 'Toggle done');
+    check.innerHTML = '<svg viewBox="0 0 24 24"><path d="M5 13l4 4 10-10" fill="none" stroke="' +
+      'currentColor' + '" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    check.addEventListener('click', () => {
+      task.done = !task.done;
+      saveTodos();
+      refreshAllTaskViews();
+    });
+
+    const span = document.createElement('span');
+    span.className = 'task-text';
+    span.textContent = task.text;
+
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'task-del';
+    del.setAttribute('aria-label', 'Delete task');
+    del.textContent = '×';
+    del.addEventListener('click', () => {
+      todos[dateKey] = tasksFor(dateKey).filter((t) => t.id !== task.id);
+      if (!todos[dateKey].length) delete todos[dateKey];
+      saveTodos();
+      refreshAllTaskViews();
+    });
+
+    li.appendChild(check);
+    li.appendChild(span);
+    li.appendChild(del);
+    return li;
+  }
+
   function renderTasks() {
     if (!todoList) return;
     const list = tasksFor(selectedDate);
@@ -966,47 +1049,7 @@
       : '';
 
     todoList.innerHTML = '';
-    list.forEach((task) => {
-      const li = document.createElement('li');
-      li.className = 'todo-item' + (task.done ? ' done' : '');
-
-      const check = document.createElement('button');
-      check.type = 'button';
-      check.className = 'task-check';
-      check.setAttribute('aria-label', 'Toggle done');
-      check.innerHTML = '<svg viewBox="0 0 24 24"><path d="M5 13l4 4 10-10" fill="none" stroke="' +
-        'currentColor' + '" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-      check.addEventListener('click', () => {
-        task.done = !task.done;
-        saveTodos();
-        renderTasks();
-        renderWeek();
-        renderBadge();
-      });
-
-      const span = document.createElement('span');
-      span.className = 'task-text';
-      span.textContent = task.text;
-
-      const del = document.createElement('button');
-      del.type = 'button';
-      del.className = 'task-del';
-      del.setAttribute('aria-label', 'Delete task');
-      del.textContent = '×';
-      del.addEventListener('click', () => {
-        todos[selectedDate] = tasksFor(selectedDate).filter((t) => t.id !== task.id);
-        if (!todos[selectedDate].length) delete todos[selectedDate];
-        saveTodos();
-        renderTasks();
-        renderWeek();
-        renderBadge();
-      });
-
-      li.appendChild(check);
-      li.appendChild(span);
-      li.appendChild(del);
-      todoList.appendChild(li);
-    });
+    list.forEach((task) => todoList.appendChild(buildTaskItem(task, selectedDate)));
   }
 
   todoForm && todoForm.addEventListener('submit', (e) => {
@@ -1059,6 +1102,243 @@
   });
   renderBadge();
 
+  /* ---------------- tabs + planner + mini timer ---------------- */
+  let activeTab = settings.tab === 'planner' ? 'planner' : 'timer';
+  const MINI_RING_C = 2 * Math.PI * 15.5;
+  if (miniRingFg) miniRingFg.style.strokeDasharray = String(MINI_RING_C);
+
+  function applyTabVisibility() {
+    const isPlanner = activeTab === 'planner';
+    $$('.timer-view').forEach((el) => el.classList.toggle('hidden', isPlanner));
+    if (plannerView) plannerView.classList.toggle('hidden', !isPlanner);
+    if (todoBtn) todoBtn.classList.toggle('hidden', isPlanner);
+    if (miniTimerBtn) miniTimerBtn.classList.toggle('hidden', !isPlanner);
+    if (tabTimerBtn) {
+      tabTimerBtn.classList.toggle('active', !isPlanner);
+      tabTimerBtn.setAttribute('aria-selected', String(!isPlanner));
+    }
+    if (tabPlannerBtn) {
+      tabPlannerBtn.classList.toggle('active', isPlanner);
+      tabPlannerBtn.setAttribute('aria-selected', String(isPlanner));
+    }
+  }
+
+  function switchTab(tab) {
+    if (tab === activeTab) return;
+    activeTab = tab;
+    settings.tab = tab;
+    saveSettings();
+    applyTabVisibility();
+    if (tab === 'planner') {
+      // park the session screen; timer keeps running in the background
+      sessionEl.classList.add('hidden');
+      showScreen(setupEl);
+      renderPlanner();
+    } else if (running) {
+      setupEl.classList.add('hidden');
+      sessionEl.classList.remove('hidden');
+      showScreen(sessionEl);
+      resetIdleTimer();
+    } else {
+      showScreen(setupEl);
+    }
+    closeMiniPop();
+  }
+
+  tabTimerBtn && tabTimerBtn.addEventListener('click', () => switchTab('timer'));
+  tabPlannerBtn && tabPlannerBtn.addEventListener('click', () => switchTab('planner'));
+
+  /* ---------- mini timer (visible while planner tab is open) ---------- */
+  let miniPopOpen = false;
+
+  function updateMiniTimer() {
+    if (!miniTimerBtn) return;
+    const secs = running ? timeLeft : settings.focus * 60;
+    miniTime.textContent = fmt(secs);
+    miniPhase.textContent = running ? PHASE_META[phase].label : 'ready';
+    const progress = totalTime > 0 ? timeLeft / totalTime : 0;
+    miniRingFg.style.strokeDashoffset = String(MINI_RING_C * (1 - (running ? progress : 1)));
+    miniTimerBtn.classList.toggle('paused', !running || paused);
+    if (miniPopOpen) {
+      miniPopPhase.textContent = running ? PHASE_META[phase].label : 'no session running';
+      miniPopTime.textContent = fmt(secs);
+      miniPopSub.textContent = running ? phaseSub.textContent : 'start a session from the timer tab';
+    }
+  }
+
+  function openMiniPop() {
+    if (!miniPop) return;
+    miniPopOpen = true;
+    miniPop.classList.remove('hidden');
+    requestAnimationFrame(() => requestAnimationFrame(() => miniPop.classList.add('open')));
+    updateMiniTimer();
+  }
+  function closeMiniPop() {
+    if (!miniPop) return;
+    miniPopOpen = false;
+    miniPop.classList.remove('open');
+    setTimeout(() => miniPop.classList.add('hidden'), 320);
+  }
+
+  miniTimerBtn && miniTimerBtn.addEventListener('click', () => (miniPopOpen ? closeMiniPop() : openMiniPop()));
+  miniPause && miniPause.addEventListener('click', () => { if (running) togglePause(); });
+  miniSkip && miniSkip.addEventListener('click', () => { if (running) advance(); });
+  miniGo && miniGo.addEventListener('click', () => switchTab('timer'));
+  window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && miniPopOpen) closeMiniPop(); });
+
+  /* ---------- planner: month calendar + day editor + week rows ---------- */
+  let calCursor = new Date(); // any day within the month being viewed
+
+  function renderPlanner() {
+    renderCalendar();
+    renderPlanList();
+    renderWeekRows();
+  }
+
+  function renderCalendar() {
+    if (!calGrid) return;
+    const y = calCursor.getFullYear();
+    const m = calCursor.getMonth();
+    calTitle.textContent = calCursor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+
+    if (calDowRow && !calDowRow.children.length) {
+      DOW_NAMES.forEach((n) => {
+        const s = document.createElement('span');
+        s.textContent = n;
+        calDowRow.appendChild(s);
+      });
+    }
+
+    calGrid.innerHTML = '';
+    const firstDow = (new Date(y, m, 1).getDay() + 6) % 7; // Monday = 0
+    const daysInMonth = new Date(y, m + 1, 0).getDate();
+    const daysInPrev = new Date(y, m, 0).getDate();
+    const today = todayKey();
+
+    for (let i = 0; i < 42; i++) {
+      const dayNum = i - firstDow + 1;
+      let cellDate;
+      let other = false;
+      if (dayNum < 1) {
+        cellDate = new Date(y, m - 1, daysInPrev + dayNum);
+        other = true;
+      } else if (dayNum > daysInMonth) {
+        cellDate = new Date(y, m + 1, dayNum - daysInMonth);
+        other = true;
+      } else {
+        cellDate = new Date(y, m, dayNum);
+      }
+      const k = keyOf(cellDate);
+      const dayTasks = tasksFor(k);
+      const pending = dayTasks.filter((t) => !t.done).length;
+
+      const cell = document.createElement('button');
+      cell.type = 'button';
+      cell.className = 'cal-cell'
+        + (other ? ' other' : '')
+        + (k === today ? ' today' : '')
+        + (k === selectedDate ? ' selected' : '');
+
+      let dotsHtml = '';
+      const shown = dayTasks.slice(0, 3);
+      for (let j = 0; j < shown.length; j++) {
+        dotsHtml += '<i class="' + (pending === 0 ? 'all-done' : '') + '"></i>';
+      }
+      cell.innerHTML = '<span class="dnum">' + cellDate.getDate() + '</span><span class="dots">' + dotsHtml + '</span>';
+      cell.setAttribute('aria-label', k + (dayTasks.length ? ', ' + dayTasks.length + ' tasks' : ''));
+
+      cell.addEventListener('click', () => {
+        selectedDate = k;
+        if (other) calCursor = new Date(cellDate); // jump months like iCloud
+        renderCalendar();
+        renderPlanList();
+        renderWeekRows();
+        renderWeek();
+        renderTasks();
+      });
+      calGrid.appendChild(cell);
+    }
+  }
+
+  calPrev && calPrev.addEventListener('click', () => {
+    calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth() - 1, 1);
+    renderCalendar();
+  });
+  calNext && calNext.addEventListener('click', () => {
+    calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth() + 1, 1);
+    renderCalendar();
+  });
+  calTodayBtn && calTodayBtn.addEventListener('click', () => {
+    calCursor = new Date();
+    selectedDate = todayKey();
+    renderCalendar();
+    renderPlanList();
+    renderWeekRows();
+    renderWeek();
+    renderTasks();
+  });
+
+  function renderPlanList() {
+    if (!planList) return;
+    const list = tasksFor(selectedDate);
+    const doneCount = list.filter((t) => t.done).length;
+    planDayLabel.textContent = prettyDay(selectedDate);
+    planCount.textContent = list.length ? doneCount + ' of ' + list.length + ' done' : '';
+
+    planList.innerHTML = '';
+    list.forEach((task) => planList.appendChild(buildTaskItem(task, selectedDate)));
+  }
+
+  function renderWeekRows() {
+    if (!weekRows) return;
+    weekRows.innerHTML = '';
+    const monday = new Date(new Date(selectedDate + 'T12:00:00').getTime());
+    const dow = (monday.getDay() + 6) % 7;
+    monday.setDate(monday.getDate() - dow);
+
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      const k = keyOf(d);
+      const list = tasksFor(k);
+      const done = list.filter((t) => !t.done).length;
+      const pct = list.length ? Math.round((done / list.length) * 100) : 0;
+
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'week-row' + (k === selectedDate ? ' selected' : '');
+      row.innerHTML =
+        '<span class="wr-dow">' + DOW_NAMES[i] + '</span>' +
+        '<span class="wr-bar"><span class="wr-fill" style="width:' + pct + '%"></span></span>' +
+        '<span class="wr-count">' + done + '/' + list.length + '</span>';
+      row.addEventListener('click', () => {
+        selectedDate = k;
+        renderCalendar();
+        renderPlanList();
+        renderWeekRows();
+        renderWeek();
+        renderTasks();
+      });
+      weekRows.appendChild(row);
+    }
+  }
+
+  planForm && planForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const text = planInput.value.trim();
+    if (!text) return;
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    todos[selectedDate] = tasksFor(selectedDate).concat({ id, text, done: false });
+    saveTodos();
+    planInput.value = '';
+    renderPlanList();
+    renderCalendar();
+    renderWeekRows();
+    renderWeek();
+    renderBadge();
+    planList.scrollTop = planList.scrollHeight;
+  });
+
   /* ---------------- boot ---------------- */
   buildCarousel();
   if (canvas && ctx) {
@@ -1071,5 +1351,8 @@
   carouselIdx = savedIdx >= 0 ? savedIdx : 0;
   initSetup();
   layoutCarousel();
+  applyTabVisibility();
+  updateMiniTimer();
+  if (activeTab === 'planner') renderPlanner();
   showScreen(setupEl);
 })();
