@@ -1413,6 +1413,28 @@ body[data-phase="short"] .mini-ring-fg, body[data-phase="long"] .mini-ring-fg { 
   .planner { align-items: flex-start; }
   .cal-cell { min-height: 44px; }
 }
+
+/* planner tab becomes a scrollable page on narrow screens */
+@media (max-width: 900px) {
+  #setup.planner-open {
+    height: 100dvh;
+    justify-content: flex-start;
+    gap: 18px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  #setup.planner-open > * { flex-shrink: 0; }
+  #setup.planner-open .planner {
+    flex: 0 0 auto;
+    align-items: stretch;
+    justify-content: flex-start;
+  }
+  #setup.planner-open .planner-grid {
+    grid-template-columns: 1fr;
+    max-height: none;
+    overflow-y: visible;
+  }
+}
 @media (min-width: 561px) and (max-width: 900px) {
   .planner-grid { grid-template-columns: 1fr; max-height: none; overflow-y: auto; }
   .planner { align-items: flex-start; }

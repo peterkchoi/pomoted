@@ -1110,6 +1110,7 @@
   function applyTabVisibility() {
     const isPlanner = activeTab === 'planner';
     $$('.timer-view').forEach((el) => el.classList.toggle('hidden', isPlanner));
+    if (setupEl) setupEl.classList.toggle('planner-open', isPlanner);
     if (plannerView) plannerView.classList.toggle('hidden', !isPlanner);
     if (todoBtn) todoBtn.classList.toggle('hidden', isPlanner);
     if (miniTimerBtn) miniTimerBtn.classList.toggle('hidden', !isPlanner);
