@@ -33,12 +33,14 @@
     { id: 'ocean',      kind: 'particle', name: 'Ocean' },
     { id: 'cafe',       kind: 'particle', name: 'Glow' },
     { id: 'forest',     kind: 'particle', name: 'Fireflies' },
+    { id: 'tajsunset',  kind: 'photo',    name: 'Taj Sunset' },
   ];
 
   const PHOTO_SCENES = {
     catstudy:   'bg/cat-study.jpg',
     wintercafe: 'bg/winter-cafe.gif',
     cloudride:  'bg/cloud-ride.gif',
+    tajsunset:  'bg/taj-sunset.jpg',
   };
 
   const PHASE_META = {
@@ -51,6 +53,7 @@
     catstudy: '#241a2e', wintercafe: '#1e2438', cloudride: '#3a2a5e',
     rain: '#16222e', sunset: '#2a1a4a', midnight: '#05060f',
     ocean: '#0f2027', cafe: '#241609', forest: '#0b3d2e',
+    tajsunset: '#3a2440',
   };
 
   /* ---------------- elements ---------------- */
@@ -853,6 +856,208 @@
     startPhase();
     requestWakeLock();
   });
+
+  /* ---------------- weekly to-do list ---------------- */
+  const TODO_KEY = 'pomoted-todos';
+  const todoBtn    = $('#todoBtn');
+  const todoBadge  = $('#todoBadge');
+  const todoScrim  = $('#todoScrim');
+  const todoPanel  = $('#todoPanel');
+  const todoClose  = $('#todoClose');
+  const weekStrip  = $('#weekStrip');
+  const dayLabel   = $('#todoDayLabel');
+  const todoCount  = $('#todoCount');
+  const todoList   = $('#todoList');
+  const todoForm   = $('#todoForm');
+  const todoInput  = $('#todoInput');
+
+  let todos = loadTodos();
+  let selectedDate = todayKey();
+
+  function loadTodos() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(TODO_KEY));
+      return raw && typeof raw === 'object' ? raw : {};
+    } catch { return {}; }
+  }
+  function saveTodos() {
+    try { localStorage.setItem(TODO_KEY, JSON.stringify(todos)); } catch { /* private mode */ }
+  }
+
+  // local date key YYYY-MM-DD (not UTC — avoids off-by-one at night)
+  function keyOf(d) {
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  function todayKey() { return keyOf(new Date()); }
+
+  function weekDates() {
+    // week starting Monday, containing today
+    const now = new Date();
+    const dow = (now.getDay() + 6) % 7; // Mon=0 … Sun=6
+    const mon = new Date(now);
+    mon.setDate(now.getDate() - dow);
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(mon);
+      d.setDate(mon.getDate() + i);
+      return d;
+    });
+  }
+
+  function tasksFor(key) { return todos[key] || []; }
+
+  function todayPending() {
+    return tasksFor(todayKey()).filter((t) => !t.done).length;
+  }
+
+  function renderBadge() {
+    const n = todayPending();
+    todoBadge.textContent = n;
+    todoBadge.classList.toggle('hidden', n === 0);
+  }
+
+  const DOW_NAMES = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+
+  function renderWeek() {
+    if (!weekStrip) return;
+    weekStrip.innerHTML = '';
+    const today = todayKey();
+    weekDates().forEach((d, i) => {
+      const k = keyOf(d);
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'day-chip'
+        + (k === selectedDate ? ' selected' : '')
+        + (k === today ? ' today' : '')
+        + (tasksFor(k).length ? ' has-tasks' : '');
+      chip.setAttribute('role', 'tab');
+      chip.setAttribute('aria-selected', k === selectedDate ? 'true' : 'false');
+      chip.innerHTML =
+        '<span class="dow">' + DOW_NAMES[i] + '</span>' +
+        '<span class="dnum">' + d.getDate() + '</span>' +
+        '<span class="dotmark"></span>';
+      chip.addEventListener('click', () => {
+        selectedDate = k;
+        renderWeek();
+        renderTasks();
+      });
+      weekStrip.appendChild(chip);
+    });
+  }
+
+  function prettyDay(k) {
+    if (k === todayKey()) return 'today';
+    const d = new Date(k + 'T12:00:00');
+    const t = new Date(); t.setHours(12, 0, 0, 0);
+    const tomorrow = new Date(t); tomorrow.setDate(t.getDate() + 1);
+    if (k === keyOf(tomorrow)) return 'tomorrow';
+    const yesterday = new Date(t); yesterday.setDate(t.getDate() - 1);
+    if (k === keyOf(yesterday)) return 'yesterday';
+    return d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+  }
+
+  function renderTasks() {
+    if (!todoList) return;
+    const list = tasksFor(selectedDate);
+    const doneCount = list.filter((t) => t.done).length;
+
+    dayLabel.textContent = prettyDay(selectedDate);
+    todoCount.textContent = list.length
+      ? doneCount + ' of ' + list.length + ' done'
+      : '';
+
+    todoList.innerHTML = '';
+    list.forEach((task) => {
+      const li = document.createElement('li');
+      li.className = 'todo-item' + (task.done ? ' done' : '');
+
+      const check = document.createElement('button');
+      check.type = 'button';
+      check.className = 'task-check';
+      check.setAttribute('aria-label', 'Toggle done');
+      check.innerHTML = '<svg viewBox="0 0 24 24"><path d="M5 13l4 4 10-10" fill="none" stroke="' +
+        'currentColor' + '" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      check.addEventListener('click', () => {
+        task.done = !task.done;
+        saveTodos();
+        renderTasks();
+        renderWeek();
+        renderBadge();
+      });
+
+      const span = document.createElement('span');
+      span.className = 'task-text';
+      span.textContent = task.text;
+
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'task-del';
+      del.setAttribute('aria-label', 'Delete task');
+      del.textContent = '×';
+      del.addEventListener('click', () => {
+        todos[selectedDate] = tasksFor(selectedDate).filter((t) => t.id !== task.id);
+        if (!todos[selectedDate].length) delete todos[selectedDate];
+        saveTodos();
+        renderTasks();
+        renderWeek();
+        renderBadge();
+      });
+
+      li.appendChild(check);
+      li.appendChild(span);
+      li.appendChild(del);
+      todoList.appendChild(li);
+    });
+  }
+
+  todoForm && todoForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const text = todoInput.value.trim();
+    if (!text) return;
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    todos[selectedDate] = tasksFor(selectedDate).concat({ id, text, done: false });
+    saveTodos();
+    todoInput.value = '';
+    renderTasks();
+    renderWeek();
+    renderBadge();
+    // keep the new task in view
+    todoList.scrollTop = todoList.scrollHeight;
+  });
+
+  let todoOpen = false;
+  function openTodo() {
+    if (!todoPanel) return;
+    todoOpen = true;
+    todoPanel.classList.remove('hidden');
+    todoScrim.classList.remove('hidden');
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      todoPanel.classList.add('open');
+      todoScrim.classList.add('open');
+    }));
+    selectedDate = todayKey();
+    renderWeek();
+    renderTasks();
+    renderBadge();
+    setTimeout(() => { if (todoInput) todoInput.focus({ preventScroll: true }); }, 480);
+  }
+  function closeTodo() {
+    if (!todoPanel) return;
+    todoOpen = false;
+    todoPanel.classList.remove('open');
+    todoScrim.classList.remove('open');
+    setTimeout(() => {
+      todoPanel.classList.add('hidden');
+      todoScrim.classList.add('hidden');
+    }, 460);
+  }
+
+  todoBtn && todoBtn.addEventListener('click', () => (todoOpen ? closeTodo() : openTodo()));
+  todoClose && todoClose.addEventListener('click', closeTodo);
+  todoScrim && todoScrim.addEventListener('click', closeTodo);
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && todoOpen) closeTodo();
+  });
+  renderBadge();
 
   /* ---------------- boot ---------------- */
   buildCarousel();

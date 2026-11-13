@@ -155,6 +155,35 @@
     </div>
   </main>
 
+  <!-- floating tasks button (works on both screens) -->
+  <button id="todoBtn" class="todo-btn" type="button" aria-label="Open weekly to-do list">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11.5 11 14l4.5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 4h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span class="todo-badge hidden" id="todoBadge">0</span>
+  </button>
+
+  <!-- ================= TO-DO POPOUT PANEL ================= -->
+  <div id="todoScrim" class="todo-scrim hidden"></div>
+  <aside id="todoPanel" class="todo-panel hidden" aria-label="Weekly to-do list">
+    <div class="todo-head">
+      <h2>this week</h2>
+      <button id="todoClose" class="todo-close" type="button" aria-label="Close to-do list">&times;</button>
+    </div>
+
+    <div class="week-strip" id="weekStrip" role="tablist" aria-label="Days of the week"></div>
+
+    <div class="todo-day-head">
+      <span id="todoDayLabel">Today</span>
+      <span class="todo-count" id="todoCount"></span>
+    </div>
+
+    <ul class="todo-list" id="todoList"></ul>
+
+    <form class="todo-add" id="todoForm">
+      <input type="text" id="todoInput" placeholder="add a task…" autocomplete="off" maxlength="120" />
+      <button type="submit" class="todo-add-btn" aria-label="Add task">+</button>
+    </form>
+  </aside>
+
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
   <script src="app.js"></script>
