@@ -843,6 +843,9 @@ body[data-phase="short"] .halo,   body[data-phase="long"] .halo {
 .planner-cal, .planner-day, .planner-week {
   padding: 20px;
   min-height: 0;
+  /* denser, less transparent panels on the planner tab */
+  background: linear-gradient(rgba(8, 10, 16, .42), rgba(8, 10, 16, .42)), var(--panel);
+  border-color: rgba(255, 255, 255, .14);
 }
 .planner-cal { display: flex; flex-direction: column; }
 
@@ -988,6 +991,8 @@ body[data-phase="short"] .halo,   body[data-phase="long"] .halo {
 }
 .week-row:hover { background: rgba(255, 255, 255, .08); }
 .week-row.selected { background: rgba(255, 255, 255, .12); }
+.week-row.complete .wr-fill { box-shadow: 0 0 10px var(--accent); }
+.week-row.complete .wr-count { color: var(--accent); font-weight: 600; }
 .week-row .wr-dow { width: 26px; font-size: .68rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
 .week-row .wr-bar {
   flex: 1;
@@ -1365,18 +1370,25 @@ body[data-phase="short"] .mini-ring-fg, body[data-phase="long"] .mini-ring-fg { 
   padding-top: 12px;
   border-top: 1px solid rgba(255, 255, 255, .1);
 }
-#todoInput {
+#todoInput, #planInput {
   flex: 1;
   font: inherit;
   font-size: .9rem;
   color: var(--fg);
-  background: rgba(255, 255, 255, .07);
-  border: 1px solid rgba(255, 255, 255, .12);
+  background: var(--panel);
+  border: 1px solid rgba(255, 255, 255, .14);
   border-radius: 14px;
   padding: 11px 14px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: border-color .2s ease, box-shadow .2s ease;
 }
-#todoInput::placeholder { color: var(--muted); font-style: italic; }
-#todoInput:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+#todoInput::placeholder, #planInput::placeholder { color: var(--muted); font-style: italic; }
+#todoInput:focus, #planInput:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, .08), 0 0 16px var(--accent);
+}
 .todo-add-btn {
   width: 44px;
   font-size: 1.3rem;

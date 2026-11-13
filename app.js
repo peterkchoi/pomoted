@@ -1301,12 +1301,12 @@
       d.setDate(monday.getDate() + i);
       const k = keyOf(d);
       const list = tasksFor(k);
-      const done = list.filter((t) => !t.done).length;
+      const done = list.filter((t) => t.done).length;
       const pct = list.length ? Math.round((done / list.length) * 100) : 0;
 
       const row = document.createElement('button');
       row.type = 'button';
-      row.className = 'week-row' + (k === selectedDate ? ' selected' : '');
+      row.className = 'week-row' + (k === selectedDate ? ' selected' : '') + (list.length > 0 && done === list.length ? ' complete' : '');
       row.innerHTML =
         '<span class="wr-dow">' + DOW_NAMES[i] + '</span>' +
         '<span class="wr-bar"><span class="wr-fill" style="width:' + pct + '%"></span></span>' +
