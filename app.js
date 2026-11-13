@@ -38,7 +38,7 @@
 
   const PHOTO_SCENES = {
     catstudy:   'bg/cat-study.jpg',
-    wintercafe: 'bg/winter-cafe.gif',
+    wintercafe: 'bg/winter-cafe.jpg',
     cloudride:  'bg/cloud-ride.gif',
     tajsunset:  'bg/taj-sunset.jpg',
   };

@@ -409,7 +409,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 
 /* gif/photo previews */
 .p-catstudy   { background-image: url("bg/cat-study.jpg"); }
-.p-wintercafe { background-image: url("bg/winter-cafe.gif"); }
+.p-wintercafe { background-image: url("bg/winter-cafe.jpg"); }
 .p-cloudride  { background-image: url("bg/cloud-ride.gif"); }
 .p-tajsunset  { background-image: url("bg/taj-sunset.jpg"); }
 
