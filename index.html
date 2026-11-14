@@ -42,16 +42,16 @@
       <h1 class="brand">pomoted</h1>
       <p class="tagline">let's bombclaat study</p>
       <nav class="tabs" id="tabs" role="tablist" aria-label="View">
-        <button class="tab active" id="tabTimer" type="button" role="tab" aria-selected="true">timer</button>
-        <button class="tab" id="tabPlanner" type="button" role="tab" aria-selected="false">planner</button>
+        <button class="tab active" id="tabTimer" type="button" role="tab" aria-selected="true">Timer</button>
+        <button class="tab" id="tabPlanner" type="button" role="tab" aria-selected="false">Planner</button>
       </nav>
     </header>
 
     <section class="float-panel timing timer-view">
       <div class="presets">
-        <button type="button" class="preset" data-f="25" data-s="5"  data-l="15" data-n="4">classic · 25/5</button>
-        <button type="button" class="preset" data-f="50" data-s="10" data-l="30" data-n="3">deep work · 50/10</button>
-        <button type="button" class="preset" data-f="15" data-s="3"  data-l="12" data-n="6">sprint · 15/3</button>
+        <button type="button" class="preset" data-f="25" data-s="5"  data-l="15" data-n="4">Classic · 25/5</button>
+        <button type="button" class="preset" data-f="50" data-s="10" data-l="30" data-n="3">Deep Work · 50/10</button>
+        <button type="button" class="preset" data-f="15" data-s="3"  data-l="12" data-n="6">Sprint · 15/3</button>
       </div>
 
       <div class="sliders">
@@ -66,7 +66,7 @@
 
         <div class="slider-block">
           <div class="slider-head">
-            <label for="short">Short break</label>
+            <label for="short">Short Break</label>
             <output id="shortVal">5 min</output>
           </div>
           <input type="range" id="short" min="1" max="30" step="1" value="5" />
@@ -75,7 +75,7 @@
 
         <div class="slider-block">
           <div class="slider-head">
-            <label for="long">Long break</label>
+            <label for="long">Long Break</label>
             <output id="longVal">15 min</output>
           </div>
           <input type="range" id="long" min="5" max="60" step="5" value="15" />
@@ -84,7 +84,7 @@
 
         <div class="slider-block">
           <div class="slider-head">
-            <label for="sessions">Long break every</label>
+            <label for="sessions">Long Break Every</label>
             <output id="sessionsVal">4 sessions</output>
           </div>
           <input type="range" id="sessions" min="2" max="8" step="1" value="4" />
@@ -112,13 +112,13 @@
       <label class="toggle">
         <input type="checkbox" id="sound" checked />
         <span class="track" aria-hidden="true"></span>
-        <span class="toggle-text">chime</span>
+        <span class="toggle-text">Chime</span>
       </label>
       <button id="start" class="start-btn" type="button">
-        <span>Begin session</span>
+        <span>Begin Session</span>
         <span class="arrow-ico" aria-hidden="true">&rarr;</span>
       </button>
-      <p class="hint">open on your phone &amp; &ldquo;Add to Home Screen&rdquo;</p>
+      <p class="hint">Open on your phone &amp; &ldquo;Add to Home Screen&rdquo;</p>
     </div>
 
     <!-- ============ PLANNER TAB ============ -->
@@ -138,7 +138,7 @@
           </div>
           <div class="cal-dow-row" id="calDowRow"></div>
           <div class="cal-grid" id="calGrid"></div>
-          <button type="button" class="cal-today-btn" id="calTodayBtn">jump to today</button>
+          <button type="button" class="cal-today-btn" id="calTodayBtn">Jump to Today</button>
         </div>
 
         <!-- right: daily / weekly editor -->
@@ -149,22 +149,22 @@
               <span class="todo-count" id="planCount"></span>
             </div>
             <ul class="todo-list" id="planList"></ul>
-            <div class="cat-target" id="planTarget">adding to: <b>general</b></div>
+            <div class="cat-target" id="planTarget">Adding to: <b>General</b></div>
             <form class="todo-add" id="planForm">
-              <input type="text" id="planInput" placeholder="add a task…" autocomplete="off" maxlength="120" />
+              <input type="text" id="planInput" placeholder="Add a task…" autocomplete="off" maxlength="120" />
               <button type="submit" class="todo-add-btn" aria-label="Add task">+</button>
             </form>
             <div class="cat-new-row">
-              <button type="button" class="cat-new-toggle" id="planCatToggle">+ new category</button>
+              <button type="button" class="cat-new-toggle" id="planCatToggle">+ New Category</button>
               <div class="cat-new hidden" id="planCatNew">
-                <input type="text" id="planCatInput" placeholder="category name…" autocomplete="off" maxlength="30" />
-                <button type="button" class="cat-create-btn" id="planCatAdd">create</button>
+                <input type="text" id="planCatInput" placeholder="Category name…" autocomplete="off" maxlength="30" />
+                <button type="button" class="cat-create-btn" id="planCatAdd">Create</button>
               </div>
             </div>
           </div>
 
           <div class="planner-week float-panel">
-            <div class="week-title">this week</div>
+            <div class="week-title">This Week</div>
             <div class="week-rows" id="weekRows"></div>
           </div>
         </div>
@@ -231,26 +231,26 @@
       </svg>
     </span>
     <span class="mini-time" id="miniTime">25:00</span>
-    <span class="mini-phase" id="miniPhase">focus</span>
+    <span class="mini-phase" id="miniPhase">Focus</span>
   </button>
 
   <!-- mini timer status popout -->
   <div id="miniPop" class="mini-pop hidden" role="status" aria-live="polite">
-    <div class="mini-pop-phase" id="miniPopPhase">focus</div>
+    <div class="mini-pop-phase" id="miniPopPhase">Focus</div>
     <div class="mini-pop-time" id="miniPopTime">25:00</div>
     <div class="mini-pop-sub" id="miniPopSub">round 1 · session 1 of 4</div>
     <div class="mini-pop-controls">
-      <button id="miniPause" class="mini-ctrl" type="button">pause</button>
-      <button id="miniSkip" class="mini-ctrl" type="button">skip</button>
+      <button id="miniPause" class="mini-ctrl" type="button">Pause</button>
+      <button id="miniSkip" class="mini-ctrl" type="button">Skip</button>
     </div>
-    <button id="miniGoTimer" class="mini-go" type="button">open timer &rarr;</button>
+    <button id="miniGoTimer" class="mini-go" type="button">Open Timer &rarr;</button>
   </div>
 
   <!-- ================= TO-DO POPOUT PANEL ================= -->
   <div id="todoScrim" class="todo-scrim hidden"></div>
   <aside id="todoPanel" class="todo-panel hidden" aria-label="Weekly to-do list">
     <div class="todo-head">
-      <h2>this week</h2>
+      <h2>This Week</h2>
       <button id="todoClose" class="todo-close" type="button" aria-label="Close to-do list">&times;</button>
     </div>
 
@@ -263,16 +263,16 @@
 
     <ul class="todo-list" id="todoList"></ul>
 
-    <div class="cat-target" id="todoTarget">adding to: <b>general</b></div>
+    <div class="cat-target" id="todoTarget">Adding to: <b>General</b></div>
     <form class="todo-add" id="todoForm">
-      <input type="text" id="todoInput" placeholder="add a task…" autocomplete="off" maxlength="120" />
+      <input type="text" id="todoInput" placeholder="Add a task…" autocomplete="off" maxlength="120" />
       <button type="submit" class="todo-add-btn" aria-label="Add task">+</button>
     </form>
     <div class="cat-new-row">
-      <button type="button" class="cat-new-toggle" id="todoCatToggle">+ new category</button>
+      <button type="button" class="cat-new-toggle" id="todoCatToggle">+ New Category</button>
       <div class="cat-new hidden" id="todoCatNew">
-        <input type="text" id="todoCatInput" placeholder="category name…" autocomplete="off" maxlength="30" />
-        <button type="button" class="cat-create-btn" id="todoCatAdd">create</button>
+        <input type="text" id="todoCatInput" placeholder="Category name…" autocomplete="off" maxlength="30" />
+        <button type="button" class="cat-create-btn" id="todoCatAdd">Create</button>
       </div>
     </div>
   </aside>

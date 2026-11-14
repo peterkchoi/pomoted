@@ -44,9 +44,9 @@
   };
 
   const PHASE_META = {
-    focus: { label: 'focus',       toast: 'Time to focus' },
-    short: { label: 'short break', toast: 'Breathe — short break' },
-    long:  { label: 'long break',  toast: 'Rest well — long break' },
+    focus: { label: 'Focus',       toast: 'Time to Focus' },
+    short: { label: 'Short Break', toast: 'Breathe — Short Break' },
+    long:  { label: 'Long Break',  toast: 'Rest Well — Long Break' },
   };
 
   const SCENE_COLORS = {
@@ -428,7 +428,7 @@
     // the long break still belongs to the round it just completed
     const round = Math.floor((completed - (phase !== 'focus' ? 1 : 0)) / n) + 1;
     const sessionNum = phase === 'focus' ? done + 1 : (done === 0 ? n : done);
-    phaseSub.textContent = 'round ' + round + ' · session ' + sessionNum + ' of ' + n;
+    phaseSub.textContent = 'Round ' + round + ' · Session ' + sessionNum + ' of ' + n;
 
     let filled = done;
     if (phase === 'long' && done === 0) filled = n;
@@ -952,7 +952,7 @@
       const raw = JSON.parse(localStorage.getItem(CATS_KEY));
       if (Array.isArray(raw) && raw.length) return raw;
     } catch { /* ignore */ }
-    return [{ id: 'general', name: 'general', closed: false }];
+    return [{ id: 'general', name: 'General', closed: false }];
   }
   function saveCats() {
     try { localStorage.setItem(CATS_KEY, JSON.stringify(cats)); } catch { /* private mode */ }
@@ -982,7 +982,7 @@
     const name = catById(activeCat).name;
     [todoTargetEl, planTargetEl].forEach((el) => {
       if (!el) return;
-      el.innerHTML = 'adding to: <b></b>';
+      el.innerHTML = 'Adding to: <b></b>';
       el.querySelector('b').textContent = name;
     });
   }
@@ -1071,13 +1071,13 @@
   }
 
   function prettyDay(k) {
-    if (k === todayKey()) return 'today';
+    if (k === todayKey()) return 'Today';
     const d = new Date(k + 'T12:00:00');
     const t = new Date(); t.setHours(12, 0, 0, 0);
     const tomorrow = new Date(t); tomorrow.setDate(t.getDate() + 1);
-    if (k === keyOf(tomorrow)) return 'tomorrow';
+    if (k === keyOf(tomorrow)) return 'Tomorrow';
     const yesterday = new Date(t); yesterday.setDate(t.getDate() - 1);
-    if (k === keyOf(yesterday)) return 'yesterday';
+    if (k === keyOf(yesterday)) return 'Yesterday';
     return d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
   }
 
@@ -1140,7 +1140,7 @@
     // keep section order: general first, then user categories in creation order
     cats.forEach((cat) => {
       const inCat = list.filter((t) => (t.cat || 'general') === cat.id);
-      if (!inCat.length && cat.id !== 'general') return; // hide empty custom sections
+      // show every category, even empty ones, so you can target + fill them right away
       if (cats.length === 1 && cat.id === 'general') {
         // no custom categories: flat list, no header
         inCat.forEach((task) => listEl.appendChild(buildTaskItem(task, dateKey)));
@@ -1329,14 +1329,14 @@
     if (!miniTimerBtn) return;
     const secs = running ? timeLeft : settings.focus * 60;
     miniTime.textContent = fmt(secs);
-    miniPhase.textContent = running ? PHASE_META[phase].label : 'ready';
+    miniPhase.textContent = running ? PHASE_META[phase].label : 'Ready';
     const progress = totalTime > 0 ? timeLeft / totalTime : 0;
     miniRingFg.style.strokeDashoffset = String(MINI_RING_C * (1 - (running ? progress : 1)));
     miniTimerBtn.classList.toggle('paused', !running || paused);
     if (miniPopOpen) {
-      miniPopPhase.textContent = running ? PHASE_META[phase].label : 'no session running';
+      miniPopPhase.textContent = running ? PHASE_META[phase].label : 'No session running';
       miniPopTime.textContent = fmt(secs);
-      miniPopSub.textContent = running ? phaseSub.textContent : 'start a session from the timer tab';
+      miniPopSub.textContent = running ? phaseSub.textContent : 'Start a session from the Timer tab';
     }
   }
 
