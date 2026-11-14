@@ -1532,6 +1532,86 @@
   wireCatCreator($('#todoCatToggle'), $('#todoCatNew'), $('#todoCatInput'), $('#todoCatAdd'));
   wireCatCreator($('#planCatToggle'), $('#planCatNew'), $('#planCatInput'), $('#planCatAdd'));
 
+  /* ---------------- spotify player ---------------- */
+  const SPOTIFY_KEY = 'pomoted-spotify';
+  const musicBtn    = $('#musicBtn');
+  const musicEq     = $('#musicEq');
+  const musicPanel  = $('#musicPanel');
+  const musicClose  = $('#musicClose');
+  const musicFrame  = $('#musicFrame');
+  const musicForm   = $('#musicForm');
+  const musicInput  = $('#musicInput');
+
+  // default: Spotify's "lofi beats" editorial playlist
+  const DEFAULT_SPOTIFY = 'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M';
+
+  let spotifyUrl = loadSpotify();
+  let musicOpen = false;
+
+  function loadSpotify() {
+    try { return localStorage.getItem(SPOTIFY_KEY) || DEFAULT_SPOTIFY; } catch { return DEFAULT_SPOTIFY; }
+  }
+  function saveSpotify(url) {
+    try { localStorage.setItem(SPOTIFY_KEY, url); } catch { /* private mode */ }
+  }
+
+  // accept open.spotify.com URLs or spotify: URIs, return embed URL
+  function toEmbedUrl(url) {
+    if (!url) return null;
+    let m = url.match(/open\.spotify\.com\/(track|album|playlist|episode|show)\/([A-Za-z0-9]+)/);
+    if (!m) m = url.match(/spotify:(track|album|playlist|episode|show):([A-Za-z0-9]+)/);
+    if (!m) return null;
+    return 'https://open.spotify.com/embed/' + m[1] + '/' + m[2] + '?utm_source=generator&theme=0';
+  }
+
+  function loadMusicFrame() {
+    const embed = toEmbedUrl(spotifyUrl);
+    if (embed && musicFrame && musicFrame.src !== embed) musicFrame.src = embed;
+    if (musicEq) musicEq.classList.toggle('hidden', !embed);
+  }
+
+  function openMusic() {
+    if (!musicPanel) return;
+    musicOpen = true;
+    musicPanel.classList.remove('hidden');
+    requestAnimationFrame(() => requestAnimationFrame(() => musicPanel.classList.add('open')));
+    loadMusicFrame();
+    if (musicInput) musicInput.value = spotifyUrl === DEFAULT_SPOTIFY ? '' : spotifyUrl;
+  }
+  function closeMusic() {
+    if (!musicPanel) return;
+    musicOpen = false;
+    musicPanel.classList.remove('open');
+    setTimeout(() => musicPanel.classList.add('hidden'), 380);
+  }
+
+  musicBtn && musicBtn.addEventListener('click', () => (musicOpen ? closeMusic() : openMusic()));
+  musicClose && musicClose.addEventListener('click', closeMusic);
+  window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && musicOpen) closeMusic(); });
+
+  musicForm && musicForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const url = musicInput.value.trim();
+    const embed = toEmbedUrl(url);
+    if (!url) {
+      // empty -> restore default playlist
+      spotifyUrl = DEFAULT_SPOTIFY;
+      saveSpotify(spotifyUrl);
+      loadMusicFrame();
+      return;
+    }
+    if (!embed) {
+      musicInput.style.borderColor = '#ff9d9d';
+      setTimeout(() => { musicInput.style.borderColor = ''; }, 900);
+      return;
+    }
+    spotifyUrl = url;
+    saveSpotify(url);
+    loadMusicFrame();
+  });
+
+  loadMusicFrame(); // badge state on boot
+
   /* ---------------- boot ---------------- */
   buildCarousel();
   if (canvas && ctx) {

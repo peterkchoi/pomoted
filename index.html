@@ -216,6 +216,30 @@
     </div>
   </main>
 
+  <!-- floating music button (bottom-left, both tabs) -->
+  <button id="musicBtn" class="music-btn" type="button" aria-label="Open Spotify player">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5.5l11-2.2V16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6.5" cy="18" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="17.5" cy="16" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+    <span class="music-eq hidden" id="musicEq" aria-hidden="true"><i></i><i></i><i></i></span>
+  </button>
+
+  <!-- Spotify player panel -->
+  <div id="musicPanel" class="music-panel hidden" aria-label="Spotify player">
+    <div class="music-head">
+      <span class="music-title">Now Playing</span>
+      <button id="musicClose" class="todo-close" type="button" aria-label="Close player">&times;</button>
+    </div>
+    <div class="music-frame-wrap" id="musicFrameWrap">
+      <iframe id="musicFrame" title="Spotify player" frameborder="0"
+        allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+        loading="lazy"></iframe>
+    </div>
+    <form class="music-link-form" id="musicForm">
+      <input type="text" id="musicInput" placeholder="Paste a Spotify link…" autocomplete="off" spellcheck="false" />
+      <button type="submit" class="cat-create-btn">Load</button>
+    </form>
+    <p class="music-hint">Link a playlist, album, or track. Sign into Spotify in the player for full songs.</p>
+  </div>
+
   <!-- floating tasks button (timer tab) -->
   <button id="todoBtn" class="todo-btn" type="button" aria-label="Open weekly to-do list">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11.5 11 14l4.5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 4h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2V6a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
