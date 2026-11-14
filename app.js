@@ -1571,6 +1571,7 @@
   let spTokens = loadTokens();
   let spClientId = loadClientId();
   let npTimer = null;
+  let spUserId = null; // used to tell owned playlists from restricted ones
 
   function loadClientId() {
     try { return localStorage.getItem(CID_KEY) || ''; } catch { return ''; }
@@ -1942,7 +1943,10 @@
     if (libBack) libBack.classList.remove('hidden');
     if (libTitle) { libTitle.classList.remove('hidden'); libTitle.textContent = name; }
     if (libTabs) libTabs.classList.add('hidden');
+    libList.classList.add('fade-out');
+    await new Promise((r) => setTimeout(r, 220));
     libList.innerHTML = '<div class="lib-empty">loading tracks…</div>';
+    libList.classList.remove('fade-out');
     animateLib('forward');
 
     let tracks = [];
@@ -1954,6 +1958,7 @@
       while (url && guard++ < 5) {
         const data = await spotifyFetch(url);
         if (!data) {
+          if (lastApiError === 403) { showRestrictedPlaylist(uri, type, name); return; }
           libList.innerHTML = '<div class="lib-empty">couldn’t load tracks (error ' + lastApiError + ') — try reconnecting</div>';
           return;
         }
@@ -2025,19 +2030,43 @@
     animateLib('forward'); // replay entrance once tracks are actually in
   }
 
+  // 403 on tracks = Spotify restricts browsing (editorial/others' playlists for dev apps)
+  // — but playback still works, so offer a direct play path
+  function showRestrictedPlaylist(uri, type, name) {
+    libList.innerHTML = '';
+    const note = document.createElement('div');
+    note.className = 'lib-empty';
+    note.textContent = 'Spotify restricts browsing this playlist’s tracks — but you can still play it.';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'cat-create-btn';
+    btn.style.margin = '10px auto 0';
+    btn.style.display = 'block';
+    btn.textContent = 'Play "' + name + '"';
+    btn.addEventListener('click', () => playUri(uri, type));
+    libList.appendChild(note);
+    libList.appendChild(btn);
+  }
+
   function fmtDuration(ms) {
     if (!ms) return '';
     const s = Math.round(ms / 1000);
     return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
   }
 
-  function showLibraryRoot() {
+  async function showLibraryRoot() {
     const wasTracks = libView === 'tracks';
     libView = 'root';
     if (libBack) libBack.classList.add('hidden');
     if (libTitle) libTitle.classList.add('hidden');
     if (libTabs) libTabs.classList.remove('hidden');
-    loadLibrary().then(() => { if (wasTracks) animateLib('back'); });
+    if (wasTracks) {
+      libList.classList.add('fade-out');
+      await new Promise((r) => setTimeout(r, 220));
+    }
+    await loadLibrary();
+    libList.classList.remove('fade-out');
+    if (wasTracks) animateLib('back');
   }
 
   function markPlayingTrack(uri) {
