@@ -924,9 +924,9 @@
   function todayKey() { return keyOf(new Date()); }
 
   function weekDates() {
-    // week starting Monday, containing today
+    // week starting Sunday, containing today
     const now = new Date();
-    const dow = (now.getDay() + 6) % 7; // Mon=0 … Sun=6
+    const dow = now.getDay(); // Sun=0 … Sat=6
     const mon = new Date(now);
     mon.setDate(now.getDate() - dow);
     return Array.from({ length: 7 }, (_, i) => {
@@ -938,6 +938,78 @@
 
   function tasksFor(key) { return todos[key] || []; }
 
+  /* ---------- categories ---------- */
+  const CATS_KEY = 'pomoted-cats';
+  const todoCatSel   = $('#todoCat');
+  const planCatSel   = $('#planCat');
+
+  let cats = loadCats();
+
+  function loadCats() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(CATS_KEY));
+      if (Array.isArray(raw) && raw.length) return raw;
+    } catch { /* ignore */ }
+    return [{ id: 'general', name: 'general', closed: false }];
+  }
+  function saveCats() {
+    try { localStorage.setItem(CATS_KEY, JSON.stringify(cats)); } catch { /* private mode */ }
+  }
+  function catById(id) { return cats.find((c) => c.id === id) || cats[0]; }
+
+  // migrate old tasks without a category into "general"
+  (function migrateTasks() {
+    let changed = false;
+    Object.keys(todos).forEach((k) => {
+      todos[k].forEach((t) => {
+        if (!t.cat) { t.cat = 'general'; changed = true; }
+        else if (!catByIdSilent(t.cat)) { t.cat = 'general'; changed = true; }
+      });
+    });
+    if (changed) saveTodos();
+  })();
+
+  function catByIdSilent(id) { return cats.some((c) => c.id === id); }
+
+  function refreshCatSelects() {
+    [todoCatSel, planCatSel].forEach((sel) => {
+      if (!sel) return;
+      const cur = sel.value;
+      sel.innerHTML = '';
+      cats.forEach((c) => {
+        const o = document.createElement('option');
+        o.value = c.id;
+        o.textContent = c.name;
+        sel.appendChild(o);
+      });
+      if (cats.some((c) => c.id === cur)) sel.value = cur;
+    });
+  }
+
+  function addCategory(name) {
+    const clean = name.trim().slice(0, 30);
+    if (!clean) return null;
+    if (cats.some((c) => c.name.toLowerCase() === clean.toLowerCase())) return null;
+    const cat = { id: 'c' + Date.now().toString(36), name: clean, closed: false };
+    cats.push(cat);
+    saveCats();
+    refreshCatSelects();
+    return cat;
+  }
+
+  function deleteCategory(id) {
+    if (id === 'general') return;
+    // re-home its tasks to general
+    let changed = false;
+    Object.keys(todos).forEach((k) => {
+      todos[k].forEach((t) => { if (t.cat === id) { t.cat = 'general'; changed = true; } });
+    });
+    cats = cats.filter((c) => c.id !== id);
+    if (changed) saveTodos();
+    saveCats();
+    refreshCatSelects();
+  }
+
   function todayPending() {
     return tasksFor(todayKey()).filter((t) => !t.done).length;
   }
@@ -948,7 +1020,7 @@
     todoBadge.classList.toggle('hidden', n === 0);
   }
 
-  const DOW_NAMES = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+  const DOW_NAMES = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
   function renderWeek() {
     if (!weekStrip) return;
@@ -972,6 +1044,12 @@
         selectedDate = k;
         renderWeek();
         renderTasks();
+        // keep the planner in sync if it's open
+        if (activeTab === 'planner') {
+          renderCalendar();
+          renderPlanList();
+          renderWeekRows();
+        }
       });
       weekStrip.appendChild(chip);
     });
@@ -1038,6 +1116,77 @@
     return li;
   }
 
+  // grouped, collapsible category sections shared by popout + planner
+  function renderTaskGroups(listEl, dateKey) {
+    listEl.innerHTML = '';
+    const list = tasksFor(dateKey);
+
+    // keep section order: general first, then user categories in creation order
+    cats.forEach((cat) => {
+      const inCat = list.filter((t) => (t.cat || 'general') === cat.id);
+      if (!inCat.length && cat.id !== 'general') return; // hide empty custom sections
+      if (cats.length === 1 && cat.id === 'general') {
+        // no custom categories: flat list, no header
+        inCat.forEach((task) => listEl.appendChild(buildTaskItem(task, dateKey)));
+        return;
+      }
+
+      const doneIn = inCat.filter((t) => t.done).length;
+
+      const head = document.createElement('button');
+      head.type = 'button';
+      head.className = 'cat-head' + (cat.closed ? ' closed' : '');
+      head.setAttribute('aria-expanded', cat.closed ? 'false' : 'true');
+      const chev = document.createElement('span');
+      chev.className = 'cat-chevron';
+      chev.setAttribute('aria-hidden', 'true');
+      chev.innerHTML = '<svg viewBox="0 0 24 24"><path d="M9 6.5 15 12l-6 5.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      const nameEl = document.createElement('span');
+      nameEl.className = 'cat-name';
+      nameEl.textContent = cat.name;
+      const countEl = document.createElement('span');
+      countEl.className = 'cat-count';
+      countEl.textContent = doneIn + '/' + inCat.length;
+      head.appendChild(chev);
+      head.appendChild(nameEl);
+      head.appendChild(countEl);
+
+      if (cat.id !== 'general') {
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'cat-del';
+        del.setAttribute('aria-label', 'Delete category');
+        del.textContent = '×';
+        del.addEventListener('click', (e) => {
+          e.stopPropagation();
+          deleteCategory(cat.id);
+          refreshAllTaskViews();
+        });
+        head.appendChild(del);
+      }
+
+      head.addEventListener('click', () => {
+        cat.closed = !cat.closed;
+        saveCats();
+        refreshAllTaskViews();
+      });
+
+      const bodyEl = document.createElement('div');
+      bodyEl.className = 'cat-body' + (cat.closed ? ' closed' : '');
+      if (!cat.closed) {
+        inCat.forEach((task) => bodyEl.appendChild(buildTaskItem(task, dateKey)));
+        // smooth expand: measure after paint
+        requestAnimationFrame(() => { bodyEl.style.maxHeight = bodyEl.scrollHeight + 'px'; });
+      }
+
+      const section = document.createElement('div');
+      section.className = 'cat-section';
+      section.appendChild(head);
+      section.appendChild(bodyEl);
+      listEl.appendChild(section);
+    });
+  }
+
   function renderTasks() {
     if (!todoList) return;
     const list = tasksFor(selectedDate);
@@ -1048,8 +1197,7 @@
       ? doneCount + ' of ' + list.length + ' done'
       : '';
 
-    todoList.innerHTML = '';
-    list.forEach((task) => todoList.appendChild(buildTaskItem(task, selectedDate)));
+    renderTaskGroups(todoList, selectedDate);
   }
 
   todoForm && todoForm.addEventListener('submit', (e) => {
@@ -1057,12 +1205,11 @@
     const text = todoInput.value.trim();
     if (!text) return;
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-    todos[selectedDate] = tasksFor(selectedDate).concat({ id, text, done: false });
+    const cat = (todoCatSel && todoCatSel.value) || 'general';
+    todos[selectedDate] = tasksFor(selectedDate).concat({ id, text, done: false, cat });
     saveTodos();
     todoInput.value = '';
-    renderTasks();
-    renderWeek();
-    renderBadge();
+    refreshAllTaskViews();
     // keep the new task in view
     todoList.scrollTop = todoList.scrollHeight;
   });
@@ -1078,6 +1225,7 @@
       todoScrim.classList.add('open');
     }));
     selectedDate = todayKey();
+    refreshCatSelects();
     renderWeek();
     renderTasks();
     renderBadge();
@@ -1191,6 +1339,7 @@
   let calCursor = new Date(); // any day within the month being viewed
 
   function renderPlanner() {
+    refreshCatSelects();
     renderCalendar();
     renderPlanList();
     renderWeekRows();
@@ -1211,7 +1360,7 @@
     }
 
     calGrid.innerHTML = '';
-    const firstDow = (new Date(y, m, 1).getDay() + 6) % 7; // Monday = 0
+    const firstDow = new Date(y, m, 1).getDay(); // Sunday = 0 (leftmost column)
     const daysInMonth = new Date(y, m + 1, 0).getDate();
     const daysInPrev = new Date(y, m, 0).getDate();
     const today = todayKey();
@@ -1286,15 +1435,14 @@
     planDayLabel.textContent = prettyDay(selectedDate);
     planCount.textContent = list.length ? doneCount + ' of ' + list.length + ' done' : '';
 
-    planList.innerHTML = '';
-    list.forEach((task) => planList.appendChild(buildTaskItem(task, selectedDate)));
+    renderTaskGroups(planList, selectedDate);
   }
 
   function renderWeekRows() {
     if (!weekRows) return;
     weekRows.innerHTML = '';
     const monday = new Date(new Date(selectedDate + 'T12:00:00').getTime());
-    const dow = (monday.getDay() + 6) % 7;
+    const dow = monday.getDay(); // week starts Sunday
     monday.setDate(monday.getDate() - dow);
 
     for (let i = 0; i < 7; i++) {
@@ -1329,16 +1477,37 @@
     const text = planInput.value.trim();
     if (!text) return;
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-    todos[selectedDate] = tasksFor(selectedDate).concat({ id, text, done: false });
+    const cat = (planCatSel && planCatSel.value) || 'general';
+    todos[selectedDate] = tasksFor(selectedDate).concat({ id, text, done: false, cat });
     saveTodos();
     planInput.value = '';
-    renderPlanList();
-    renderCalendar();
-    renderWeekRows();
-    renderWeek();
-    renderBadge();
+    refreshAllTaskViews();
     planList.scrollTop = planList.scrollHeight;
   });
+
+  /* ---------- new-category creators ---------- */
+  function wireCatCreator(toggleBtn, wrap, input, createBtn) {
+    if (!toggleBtn || !wrap) return;
+    toggleBtn.addEventListener('click', () => {
+      wrap.classList.toggle('hidden');
+      if (!wrap.classList.contains('hidden') && input) input.focus();
+    });
+    const create = () => {
+      if (!input) return;
+      const cat = addCategory(input.value);
+      if (cat) {
+        input.value = '';
+        wrap.classList.add('hidden');
+        if (todoCatSel) todoCatSel.value = cat.id;
+        if (planCatSel) planCatSel.value = cat.id;
+        refreshAllTaskViews();
+      }
+    };
+    createBtn && createBtn.addEventListener('click', create);
+    input && input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); create(); } });
+  }
+  wireCatCreator($('#todoCatToggle'), $('#todoCatNew'), $('#todoCatInput'), $('#todoCatAdd'));
+  wireCatCreator($('#planCatToggle'), $('#planCatNew'), $('#planCatInput'), $('#planCatAdd'));
 
   /* ---------------- boot ---------------- */
   buildCarousel();
@@ -1353,6 +1522,7 @@
   initSetup();
   layoutCarousel();
   applyTabVisibility();
+  refreshCatSelects();
   updateMiniTimer();
   if (activeTab === 'planner') renderPlanner();
   showScreen(setupEl);

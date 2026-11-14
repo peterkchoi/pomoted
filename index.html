@@ -150,9 +150,17 @@
             </div>
             <ul class="todo-list" id="planList"></ul>
             <form class="todo-add" id="planForm">
+              <select class="cat-select" id="planCat" aria-label="Category"></select>
               <input type="text" id="planInput" placeholder="add a task…" autocomplete="off" maxlength="120" />
               <button type="submit" class="todo-add-btn" aria-label="Add task">+</button>
             </form>
+            <div class="cat-new-row">
+              <button type="button" class="cat-new-toggle" id="planCatToggle">+ new category</button>
+              <div class="cat-new hidden" id="planCatNew">
+                <input type="text" id="planCatInput" placeholder="category name…" autocomplete="off" maxlength="30" />
+                <button type="button" class="cat-create-btn" id="planCatAdd">create</button>
+              </div>
+            </div>
           </div>
 
           <div class="planner-week float-panel">
@@ -256,9 +264,17 @@
     <ul class="todo-list" id="todoList"></ul>
 
     <form class="todo-add" id="todoForm">
+      <select class="cat-select" id="todoCat" aria-label="Category"></select>
       <input type="text" id="todoInput" placeholder="add a task…" autocomplete="off" maxlength="120" />
       <button type="submit" class="todo-add-btn" aria-label="Add task">+</button>
     </form>
+    <div class="cat-new-row">
+      <button type="button" class="cat-new-toggle" id="todoCatToggle">+ new category</button>
+      <div class="cat-new hidden" id="todoCatNew">
+        <input type="text" id="todoCatInput" placeholder="category name…" autocomplete="off" maxlength="30" />
+        <button type="button" class="cat-create-btn" id="todoCatAdd">create</button>
+      </div>
+    </div>
   </aside>
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
