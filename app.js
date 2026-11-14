@@ -1579,7 +1579,12 @@
     try { localStorage.setItem(CID_KEY, id); } catch { /* ignore */ }
   }
   function loadTokens() {
-    try { return JSON.parse(localStorage.getItem(TOKEN_KEY)); } catch { return null; }
+    try {
+      const t = JSON.parse(localStorage.getItem(TOKEN_KEY));
+      // tokens from before the streaming scope was added can't drive the SDK
+      if (t && t.v === 2) return t;
+      return null;
+    } catch { return null; }
   }
   function saveTokens(t) {
     try { localStorage.setItem(TOKEN_KEY, JSON.stringify(t)); } catch { /* ignore */ }
@@ -1617,7 +1622,7 @@
       redirect_uri: redirectUri,
       code_challenge_method: 'S256',
       code_challenge: challenge,
-      scope: 'user-read-currently-playing user-read-playback-state user-modify-playback-state user-library-read playlist-read-private playlist-read-collaborative',
+      scope: 'streaming user-read-email user-read-private user-read-currently-playing user-read-playback-state user-modify-playback-state user-library-read playlist-read-private playlist-read-collaborative',
     });
     location.href = 'https://accounts.spotify.com/authorize?' + params.toString();
   }
@@ -1649,6 +1654,7 @@
           access_token: data.access_token,
           refresh_token: data.refresh_token,
           expires_at: Date.now() + data.expires_in * 1000,
+          v: 2, // scope version: includes streaming
         };
         saveTokens(spTokens);
         renderMusicPanel();
@@ -1710,16 +1716,85 @@
     renderMusicPanel();
   }
 
+  /* ---------- Web Playback SDK (browser becomes a playback device) ---------- */
+  let spPlayer = null;
+  let spDeviceId = null;
+  let sdkReady = false;
+  let sdkFailed = false;
+
+  function loadSpotifySdk() {
+    if (document.getElementById('spotify-sdk') || !isConnected()) return;
+    const s = document.createElement('script');
+    s.id = 'spotify-sdk';
+    s.src = 'https://sdk.scdn.co/spotify-player.js';
+    s.onerror = () => { sdkFailed = true; };
+    document.body.appendChild(s);
+  }
+
+  // called by the SDK once loaded
+  window.onSpotifyWebPlaybackSDKReady = () => {
+    if (!isConnected() || spPlayer) return;
+    spPlayer = new window.Spotify.Player({
+      name: 'pomoted',
+      getOAuthToken: async (cb) => {
+        if (Date.now() > spTokens.expires_at - 60000) await refreshSpotifyToken();
+        cb(spTokens ? spTokens.access_token : '');
+      },
+      volume: 0.5,
+    });
+
+    spPlayer.addListener('ready', ({ device_id }) => {
+      sdkReady = true;
+      spDeviceId = device_id;
+      // make pomoted the active device so API commands target the browser
+      spotifyFetch('/me/player', { method: 'PUT', body: JSON.stringify({ device_ids: [device_id], play: false }) });
+    });
+    spPlayer.addListener('not_ready', () => { sdkReady = false; });
+    spPlayer.addListener('account_error', () => {
+      // free accounts can't use the SDK — embed previews still work
+      sdkFailed = true;
+      if (musicHint) {
+        musicHint.classList.remove('hidden');
+        musicHint.textContent = 'Full in-browser playback needs Spotify Premium — previews still play below.';
+      }
+    });
+    spPlayer.addListener('authentication_error', () => { sdkFailed = true; });
+    spPlayer.addListener('player_state_changed', (state) => {
+      if (!state) return;
+      const track = state.track_window && state.track_window.current_track;
+      if (track) {
+        npTrack.textContent = track.name || '—';
+        npArtist.textContent = (track.artists || []).map((a) => a.name).join(', ') || '—';
+        const img = track.album && track.album.images && track.album.images.length
+          ? track.album.images[track.album.images.length - 1].url : null;
+        if (img && npArt) npArt.src = img;
+        markPlayingTrack(track.uri);
+      }
+      npIsPlaying = !state.paused;
+      if (npPlay) {
+        const pauseIc = npPlay.querySelector('.ic-pause');
+        const playIc = npPlay.querySelector('.ic-play');
+        if (pauseIc) pauseIc.classList.toggle('hidden', !npIsPlaying);
+        if (playIc) playIc.classList.toggle('hidden', npIsPlaying);
+      }
+    });
+    spPlayer.connect();
+  };
+
   /* ---------- panel rendering ---------- */
   function renderMusicPanel() {
     const connected = isConnected();
-    if (musicGuest) musicGuest.classList.toggle('hidden', connected);
+    // guest section stays visible when the SDK can't play (free tier) so previews still work
+    const showGuest = !connected || sdkFailed;
+    if (musicGuest) musicGuest.classList.toggle('hidden', !showGuest);
     if (nowPlaying) nowPlaying.classList.toggle('hidden', !connected);
     if (libraryWrap) libraryWrap.classList.toggle('hidden', !connected);
     if (connected) {
+      loadSpotifySdk();
       pollNowPlaying();
-      loadLibrary();
-      startNpPolling();
+      showLibraryRoot();
+      // no API polling when the SDK drives the now-playing state
+      if (!sdkReady) startNpPolling(); else stopNpPolling();
     } else {
       stopNpPolling();
       loadMusicFrame();
@@ -1768,12 +1843,29 @@
     return res;
   }
 
-  npPlay && npPlay.addEventListener('click', () => npCmd(npIsPlaying ? '/me/player/pause' : '/me/player/play', 'PUT'));
-  npPrev && npPrev.addEventListener('click', () => npCmd('/me/player/previous'));
-  npNext && npNext.addEventListener('click', () => npCmd('/me/player/next'));
+  // transport: use the SDK player when the browser is the device, else the API
+  npPlay && npPlay.addEventListener('click', () => {
+    if (sdkReady && spPlayer) { spPlayer.togglePlay(); return; }
+    npCmd(npIsPlaying ? '/me/player/pause' : '/me/player/play', 'PUT');
+  });
+  npPrev && npPrev.addEventListener('click', () => {
+    if (sdkReady && spPlayer) { spPlayer.previousTrack(); return; }
+    npCmd('/me/player/previous');
+  });
+  npNext && npNext.addEventListener('click', () => {
+    if (sdkReady && spPlayer) { spPlayer.nextTrack(); return; }
+    npCmd('/me/player/next');
+  });
 
-  /* ---------- library browser ---------- */
+  /* ---------- library browser + track drill-down ---------- */
   let libMode = 'playlists';
+  let libView = 'root'; // 'root' | 'tracks'
+  let playingUri = null;
+  const libBack  = $('#libBack');
+  const libTitle = $('#libTitle');
+  const libTabs  = $('#libTabs');
+
+  libBack && libBack.addEventListener('click', () => showLibraryRoot());
 
   async function loadLibrary() {
     if (!libList) return;
@@ -1825,27 +1917,149 @@
       meta.appendChild(sub);
       btn.appendChild(img);
       btn.appendChild(meta);
-      btn.addEventListener('click', () => playUri(item.uri, item.type));
+      btn.addEventListener('click', () => openContent(item.uri, item.type, item.name));
       libList.appendChild(btn);
     });
   }
 
+  /* ---------- drill into a playlist/album: list its tracks ---------- */
+  async function openContent(uri, type, name) {
+    const id = uri.split(':')[2];
+    if (!id) return;
+    libView = 'tracks';
+    if (libBack) libBack.classList.remove('hidden');
+    if (libTitle) { libTitle.classList.remove('hidden'); libTitle.textContent = name; }
+    if (libTabs) libTabs.classList.add('hidden');
+    libList.innerHTML = '<div class="lib-empty">loading tracks…</div>';
+
+    let tracks = [];
+    if (type === 'playlist') {
+      const data = await spotifyFetch('/playlists/' + id + '/tracks?limit=100');
+      if (data && data.items) {
+        tracks = data.items.map((it) => it.track).filter(Boolean).map((t) => ({
+          name: t.name,
+          sub: (t.artists || []).map((a) => a.name).join(', '),
+          dur: fmtDuration(t.duration_ms),
+          uri: t.uri,
+          contextUri: uri,
+        }));
+      }
+    } else if (type === 'album') {
+      const data = await spotifyFetch('/albums/' + id + '/tracks?limit=50');
+      if (data && data.items) {
+        tracks = data.items.map((t) => ({
+          name: t.name,
+          sub: (t.artists || []).map((a) => a.name).join(', '),
+          dur: fmtDuration(t.duration_ms),
+          uri: t.uri,
+          contextUri: uri,
+        }));
+      }
+    }
+
+    libList.innerHTML = '';
+    if (!tracks.length) {
+      libList.innerHTML = '<div class="lib-empty">no tracks found</div>';
+      return;
+    }
+    tracks.forEach((t) => {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'lib-item' + (t.uri === playingUri ? ' playing' : '');
+      row.dataset.uri = t.uri;
+      const meta = document.createElement('div');
+      meta.style.minWidth = '0';
+      meta.style.flex = '1';
+      const nm = document.createElement('div');
+      nm.className = 'lib-name';
+      nm.textContent = t.name;
+      const sb = document.createElement('div');
+      sb.className = 'lib-sub';
+      sb.textContent = t.sub;
+      meta.appendChild(nm);
+      meta.appendChild(sb);
+      const dur = document.createElement('span');
+      dur.className = 'lib-dur';
+      dur.textContent = t.dur;
+      row.appendChild(meta);
+      row.appendChild(dur);
+      row.addEventListener('click', () => playTrack(t.contextUri, t.uri));
+      libList.appendChild(row);
+    });
+  }
+
+  function fmtDuration(ms) {
+    if (!ms) return '';
+    const s = Math.round(ms / 1000);
+    return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  }
+
+  function showLibraryRoot() {
+    libView = 'root';
+    if (libBack) libBack.classList.add('hidden');
+    if (libTitle) libTitle.classList.add('hidden');
+    if (libTabs) libTabs.classList.remove('hidden');
+    loadLibrary();
+  }
+
+  function markPlayingTrack(uri) {
+    playingUri = uri;
+    if (!libList) return;
+    Array.from(libList.children).forEach((row) => {
+      row.classList.toggle('playing', row.dataset.uri === uri);
+    });
+  }
+
+  /* ---------- playback ---------- */
+  async function playTrack(contextUri, trackUri) {
+    markPlayingTrack(trackUri);
+    if (musicEq) musicEq.classList.remove('hidden');
+
+    if (sdkReady && spDeviceId) {
+      // full playback right here in the browser
+      await spotifyFetch('/me/player/play?device_id=' + spDeviceId, {
+        method: 'PUT',
+        body: JSON.stringify({ context_uri: contextUri, offset: { uri: trackUri } }),
+      });
+      return;
+    }
+    // fallback: play on whatever device is active (Spotify app etc.)
+    if (isConnected()) {
+      const res = await spotifyFetch('/me/player/play', {
+        method: 'PUT',
+        body: JSON.stringify({ context_uri: contextUri, offset: { uri: trackUri } }),
+      });
+      setTimeout(pollNowPlaying, 500);
+    }
+    // and load the track into the embed so there's always visible/audible feedback
+    const trackId = trackUri.split(':')[2];
+    if (trackId && musicFrame) {
+      musicFrame.src = 'https://open.spotify.com/embed/track/' + trackId + '?utm_source=generator&theme=0';
+      if (musicGuest) musicGuest.classList.remove('hidden');
+    }
+  }
+
   async function playUri(uri, type) {
-    // load into the embed for instant in-browser playback
+    // whole collection: play from the top
+    if (sdkReady && spDeviceId) {
+      await spotifyFetch('/me/player/play?device_id=' + spDeviceId, {
+        method: 'PUT',
+        body: JSON.stringify({ context_uri: uri }),
+      });
+      return;
+    }
+    if (isConnected()) {
+      await spotifyFetch('/me/player/play', {
+        method: 'PUT',
+        body: JSON.stringify({ context_uri: uri }),
+      });
+      setTimeout(pollNowPlaying, 500);
+    }
     const id = uri.split(':')[2];
     if (id) {
       spotifyUrl = 'https://open.spotify.com/' + type + '/' + id;
       saveSpotify(spotifyUrl);
-      // also switch guest frame so it matches even after logout
       loadMusicFrame();
-    }
-    // and try to start playback on the user's active device
-    if (isConnected()) {
-      await spotifyFetch('/me/player/play', {
-        method: 'PUT',
-        body: JSON.stringify(type === 'track' ? { uris: [uri] } : { context_uri: uri }),
-      });
-      setTimeout(pollNowPlaying, 500);
     }
     if (musicEq) musicEq.classList.remove('hidden');
   }

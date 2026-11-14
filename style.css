@@ -1336,10 +1336,42 @@ body[data-phase="short"] .mini-ring-fg, body[data-phase="long"] .mini-ring-fg { 
 
 /* library browser */
 .library-wrap { margin-top: 4px; }
+.lib-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.lib-back {
+  width: 30px; height: 30px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg);
+  background: rgba(255, 255, 255, .07);
+  border: 1px solid rgba(255, 255, 255, .1);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all .2s var(--ease-spring);
+}
+.lib-back svg { width: 16px; height: 16px; }
+.lib-back:hover { background: rgba(255, 255, 255, .15); transform: scale(1.08); }
+.lib-back:active { transform: scale(.92); }
+.lib-title {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: .98rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .lib-tabs {
   display: flex;
   gap: 6px;
-  margin-bottom: 10px;
+  flex: 1;
 }
 .lib-tab {
   flex: 1;
@@ -1397,6 +1429,12 @@ body[data-phase="short"] .mini-ring-fg, body[data-phase="long"] .mini-ring-fg { 
   text-overflow: ellipsis;
 }
 .lib-item .lib-sub { font-size: .66rem; color: var(--muted); }
+.lib-item .lib-dur { font-size: .68rem; color: var(--muted); font-variant-numeric: tabular-nums; flex: 0 0 auto; }
+.lib-item.playing {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.lib-item.playing .lib-name { color: var(--accent); }
 .lib-empty {
   padding: 24px;
   text-align: center;
