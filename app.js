@@ -1688,6 +1688,18 @@
   }
 
   let lastApiError = 0;
+  let lastApiErrorMsg = '';
+
+  async function readSpotifyError(res) {
+    lastApiError = res.status;
+    lastApiErrorMsg = '';
+    try {
+      const body = await res.json();
+      if (body && body.error) {
+        lastApiErrorMsg = body.error.message || (typeof body.error === 'string' ? body.error : '');
+      }
+    } catch { /* no json body */ }
+  }
 
   async function spotifyFetch(path, options) {
     if (!spTokens) return null;
@@ -1706,13 +1718,13 @@
           headers: { Authorization: 'Bearer ' + spTokens.access_token },
         }));
         if (retry.status === 204) return {};
-        if (!retry.ok) lastApiError = retry.status;
+        if (!retry.ok) await readSpotifyError(retry);
         return retry.ok ? retry.json() : null;
       }
       if (res.status === 204) return {};
-      if (!res.ok) lastApiError = res.status;
+      if (!res.ok) await readSpotifyError(res);
       return res.ok ? res.json() : null;
-    } catch { lastApiError = -1; return null; }
+    } catch { lastApiError = -1; lastApiErrorMsg = 'network'; return null; }
   }
 
   function spotifyLogout() {
@@ -2036,16 +2048,24 @@
     libList.innerHTML = '';
     const note = document.createElement('div');
     note.className = 'lib-empty';
-    note.textContent = 'Spotify restricts browsing this playlist’s tracks — but you can still play it.';
+    const reason = lastApiErrorMsg ? ' (' + lastApiErrorMsg + ')' : '';
+    note.textContent = 'Can’t list these tracks' + reason + ' — but you can still play it.';
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'cat-create-btn';
-    btn.style.margin = '10px auto 0';
+    btn.style.margin = '10px auto 6px';
     btn.style.display = 'block';
     btn.textContent = 'Play "' + name + '"';
     btn.addEventListener('click', () => playUri(uri, type));
     libList.appendChild(note);
     libList.appendChild(btn);
+
+    // the embed isn't subject to the API restriction — load the full playlist there
+    const id = uri.split(':')[2];
+    if (id && musicFrame) {
+      musicFrame.src = 'https://open.spotify.com/embed/' + type + '/' + id + '?utm_source=generator&theme=0';
+      if (musicGuest) musicGuest.classList.remove('hidden');
+    }
   }
 
   function fmtDuration(ms) {
