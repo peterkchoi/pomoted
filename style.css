@@ -1412,6 +1412,29 @@ body[data-phase="short"] .mini-ring-fg, body[data-phase="long"] .mini-ring-fg { 
   from { opacity: 0; transform: translateX(-20px); }
   to   { opacity: 1; transform: none; }
 }
+/* staggered per-item cascade when a view slides in */
+.lib-list.slide-in-right .lib-item { animation: libItemInR .34s var(--ease-out) backwards; }
+.lib-list.slide-in-left  .lib-item { animation: libItemInL .34s var(--ease-out) backwards; }
+.lib-list.slide-in-right .lib-item:nth-child(1) { animation-delay: .02s; }
+.lib-list.slide-in-right .lib-item:nth-child(2) { animation-delay: .05s; }
+.lib-list.slide-in-right .lib-item:nth-child(3) { animation-delay: .08s; }
+.lib-list.slide-in-right .lib-item:nth-child(4) { animation-delay: .11s; }
+.lib-list.slide-in-right .lib-item:nth-child(5) { animation-delay: .14s; }
+.lib-list.slide-in-right .lib-item:nth-child(n+6) { animation-delay: .17s; }
+.lib-list.slide-in-left .lib-item:nth-child(1) { animation-delay: .02s; }
+.lib-list.slide-in-left .lib-item:nth-child(2) { animation-delay: .05s; }
+.lib-list.slide-in-left .lib-item:nth-child(3) { animation-delay: .08s; }
+.lib-list.slide-in-left .lib-item:nth-child(4) { animation-delay: .11s; }
+.lib-list.slide-in-left .lib-item:nth-child(5) { animation-delay: .14s; }
+.lib-list.slide-in-left .lib-item:nth-child(n+6) { animation-delay: .17s; }
+@keyframes libItemInR {
+  from { opacity: 0; transform: translateX(14px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes libItemInL {
+  from { opacity: 0; transform: translateX(-14px); }
+  to   { opacity: 1; transform: none; }
+}
 /* head swap: elements animate in whenever they reappear */
 .lib-back:not(.hidden), .lib-title:not(.hidden) { animation: libHeadIn .32s var(--ease-out); }
 @keyframes libHeadIn {

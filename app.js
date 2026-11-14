@@ -1686,6 +1686,8 @@
     return false;
   }
 
+  let lastApiError = 0;
+
   async function spotifyFetch(path, options) {
     if (!spTokens) return null;
     if (Date.now() > spTokens.expires_at - 60000) {
@@ -1703,11 +1705,13 @@
           headers: { Authorization: 'Bearer ' + spTokens.access_token },
         }));
         if (retry.status === 204) return {};
+        if (!retry.ok) lastApiError = retry.status;
         return retry.ok ? retry.json() : null;
       }
       if (res.status === 204) return {};
+      if (!res.ok) lastApiError = res.status;
       return res.ok ? res.json() : null;
-    } catch { return null; }
+    } catch { lastApiError = -1; return null; }
   }
 
   function spotifyLogout() {
@@ -1945,12 +1949,12 @@
     if (type === 'playlist') {
       // Spotify returns playlist entries as items[].track on old API shape,
       // items[].item on the new shape — support both, skip episodes/local files
-      let url = '/playlists/' + id + '/tracks?limit=100';
+      let url = '/playlists/' + id + '/tracks?limit=100&market=from_token';
       let guard = 0;
       while (url && guard++ < 5) {
         const data = await spotifyFetch(url);
         if (!data) {
-          libList.innerHTML = '<div class="lib-empty">couldn’t load tracks — check your connection</div>';
+          libList.innerHTML = '<div class="lib-empty">couldn’t load tracks (error ' + lastApiError + ') — try reconnecting</div>';
           return;
         }
         (data.items || []).forEach((it) => {
@@ -1967,7 +1971,7 @@
         url = data.next ? data.next.replace('https://api.spotify.com/v1', '') : null;
       }
     } else if (type === 'album') {
-      let url = '/albums/' + id + '/tracks?limit=50';
+      let url = '/albums/' + id + '/tracks?limit=50&market=from_token';
       let guard = 0;
       while (url && guard++ < 5) {
         const data = await spotifyFetch(url);
