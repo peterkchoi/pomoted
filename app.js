@@ -1534,6 +1534,8 @@
 
   /* ---------------- spotify player ---------------- */
   const SPOTIFY_KEY = 'pomoted-spotify';
+  const CID_KEY = 'pomoted-spotify-cid';
+  const TOKEN_KEY = 'pomoted-spotify-tokens';
   const musicBtn    = $('#musicBtn');
   const musicEq     = $('#musicEq');
   const musicPanel  = $('#musicPanel');
@@ -1541,12 +1543,331 @@
   const musicFrame  = $('#musicFrame');
   const musicForm   = $('#musicForm');
   const musicInput  = $('#musicInput');
+  const musicHint   = $('#musicHint');
+  const musicGuest  = $('#musicGuest');
+  const nowPlaying  = $('#nowPlaying');
+  const npArt       = $('#npArt');
+  const npTrack     = $('#npTrack');
+  const npArtist    = $('#npArtist');
+  const npPlay      = $('#npPlay');
+  const npPrev      = $('#npPrev');
+  const npNext      = $('#npNext');
+  const libraryWrap = $('#libraryWrap');
+  const libList     = $('#libList');
+  const libTabPlaylists = $('#libTabPlaylists');
+  const libTabAlbums    = $('#libTabAlbums');
+  const connectBtn  = $('#musicConnect');
+  const clientIdRow = $('#clientIdRow');
+  const clientIdInput = $('#clientIdInput');
+  const clientIdSave  = $('#clientIdSave');
 
   // default: Spotify's "lofi beats" editorial playlist
   const DEFAULT_SPOTIFY = 'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M';
 
   let spotifyUrl = loadSpotify();
   let musicOpen = false;
+
+  /* ---------- auth (PKCE, no backend needed) ---------- */
+  let spTokens = loadTokens();
+  let spClientId = loadClientId();
+  let npTimer = null;
+
+  function loadClientId() {
+    try { return localStorage.getItem(CID_KEY) || ''; } catch { return ''; }
+  }
+  function saveClientId(id) {
+    try { localStorage.setItem(CID_KEY, id); } catch { /* ignore */ }
+  }
+  function loadTokens() {
+    try { return JSON.parse(localStorage.getItem(TOKEN_KEY)); } catch { return null; }
+  }
+  function saveTokens(t) {
+    try { localStorage.setItem(TOKEN_KEY, JSON.stringify(t)); } catch { /* ignore */ }
+  }
+  function isConnected() { return !!(spTokens && spTokens.access_token); }
+
+  function randomString(len) {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let out = '';
+    const arr = new Uint8Array(len);
+    crypto.getRandomValues(arr);
+    for (let i = 0; i < len; i++) out += chars[arr[i] % chars.length];
+    return out;
+  }
+
+  async function sha256b64(str) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+    return btoa(String.fromCharCode.apply(null, new Uint8Array(buf)))
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  async function spotifyLogin() {
+    if (!spClientId) {
+      if (clientIdRow) clientIdRow.classList.remove('hidden');
+      if (musicHint) musicHint.textContent = 'Paste your Spotify Client ID first (free at developer.spotify.com), then Save and Connect.';
+      return;
+    }
+    const verifier = randomString(64);
+    const challenge = await sha256b64(verifier);
+    try { sessionStorage.setItem('pomoted-spotify-verifier', verifier); } catch { /* ignore */ }
+    const redirectUri = location.origin + location.pathname;
+    const params = new URLSearchParams({
+      client_id: spClientId,
+      response_type: 'code',
+      redirect_uri: redirectUri,
+      code_challenge_method: 'S256',
+      code_challenge: challenge,
+      scope: 'user-read-currently-playing user-read-playback-state user-modify-playback-state user-library-read playlist-read-private playlist-read-collaborative',
+    });
+    location.href = 'https://accounts.spotify.com/authorize?' + params.toString();
+  }
+
+  async function handleSpotifyCallback() {
+    const params = new URLSearchParams(location.search);
+    const code = params.get('code');
+    if (!code) return;
+    let verifier = null;
+    try { verifier = sessionStorage.getItem('pomoted-spotify-verifier'); } catch { /* ignore */ }
+    // clean the URL
+    try { history.replaceState(null, '', location.origin + location.pathname); } catch { /* ignore */ }
+    if (!verifier || !spClientId) return;
+    try {
+      const res = await fetch('https://accounts.spotify.com/api/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: spClientId,
+          grant_type: 'authorization_code',
+          code: code,
+          redirect_uri: location.origin + location.pathname,
+          code_verifier: verifier,
+        }),
+      });
+      const data = await res.json();
+      if (data.access_token) {
+        spTokens = {
+          access_token: data.access_token,
+          refresh_token: data.refresh_token,
+          expires_at: Date.now() + data.expires_in * 1000,
+        };
+        saveTokens(spTokens);
+        renderMusicPanel();
+      }
+    } catch { /* network fail — stay in guest mode */ }
+  }
+
+  async function refreshSpotifyToken() {
+    if (!spTokens || !spTokens.refresh_token) return false;
+    try {
+      const res = await fetch('https://accounts.spotify.com/api/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: spClientId,
+          grant_type: 'refresh_token',
+          refresh_token: spTokens.refresh_token,
+        }),
+      });
+      const data = await res.json();
+      if (data.access_token) {
+        spTokens.access_token = data.access_token;
+        if (data.refresh_token) spTokens.refresh_token = data.refresh_token;
+        spTokens.expires_at = Date.now() + data.expires_in * 1000;
+        saveTokens(spTokens);
+        return true;
+      }
+    } catch { /* ignore */ }
+    return false;
+  }
+
+  async function spotifyFetch(path, options) {
+    if (!spTokens) return null;
+    if (Date.now() > spTokens.expires_at - 60000) {
+      const ok = await refreshSpotifyToken();
+      if (!ok) return null;
+    }
+    try {
+      const res = await fetch('https://api.spotify.com/v1' + path, Object.assign({}, options, {
+        headers: { Authorization: 'Bearer ' + spTokens.access_token },
+      }));
+      if (res.status === 401) { // token died — force one refresh retry
+        const ok = await refreshSpotifyToken();
+        if (!ok) return null;
+        const retry = await fetch('https://api.spotify.com/v1' + path, Object.assign({}, options, {
+          headers: { Authorization: 'Bearer ' + spTokens.access_token },
+        }));
+        if (retry.status === 204) return {};
+        return retry.ok ? retry.json() : null;
+      }
+      if (res.status === 204) return {};
+      return res.ok ? res.json() : null;
+    } catch { return null; }
+  }
+
+  function spotifyLogout() {
+    spTokens = null;
+    try { localStorage.removeItem(TOKEN_KEY); } catch { /* ignore */ }
+    renderMusicPanel();
+  }
+
+  /* ---------- panel rendering ---------- */
+  function renderMusicPanel() {
+    const connected = isConnected();
+    if (musicGuest) musicGuest.classList.toggle('hidden', connected);
+    if (nowPlaying) nowPlaying.classList.toggle('hidden', !connected);
+    if (libraryWrap) libraryWrap.classList.toggle('hidden', !connected);
+    if (connected) {
+      pollNowPlaying();
+      loadLibrary();
+      startNpPolling();
+    } else {
+      stopNpPolling();
+      loadMusicFrame();
+    }
+  }
+
+  /* ---------- now playing + controls ---------- */
+  let npIsPlaying = false;
+
+  async function pollNowPlaying() {
+    const data = await spotifyFetch('/me/player/currently-playing');
+    if (!data || !data.item) {
+      npTrack.textContent = 'Nothing playing';
+      npArtist.textContent = 'pick something from your library below';
+      if (npArt) npArt.removeAttribute('src');
+      npIsPlaying = false;
+    } else {
+      const item = data.item;
+      npTrack.textContent = item.name || '—';
+      npArtist.textContent = (item.artists || []).map((a) => a.name).join(', ') || (item.show && item.show.name) || '—';
+      const img = item.album && item.album.images && item.album.images.length
+        ? item.album.images[item.album.images.length - 1].url : null;
+      if (img && npArt) npArt.src = img;
+      npIsPlaying = !!data.is_playing;
+    }
+    if (npPlay) {
+      const pauseIc = npPlay.querySelector('.ic-pause');
+      const playIc = npPlay.querySelector('.ic-play');
+      if (pauseIc) pauseIc.classList.toggle('hidden', !npIsPlaying);
+      if (playIc) playIc.classList.toggle('hidden', npIsPlaying);
+    }
+  }
+
+  function startNpPolling() {
+    stopNpPolling();
+    npTimer = setInterval(pollNowPlaying, 5000);
+  }
+  function stopNpPolling() {
+    if (npTimer) clearInterval(npTimer);
+    npTimer = null;
+  }
+
+  async function npCmd(path, method) {
+    const res = await spotifyFetch(path, { method: method || 'POST' });
+    setTimeout(pollNowPlaying, 400); // give the API a beat to catch up
+    return res;
+  }
+
+  npPlay && npPlay.addEventListener('click', () => npCmd(npIsPlaying ? '/me/player/pause' : '/me/player/play', 'PUT'));
+  npPrev && npPrev.addEventListener('click', () => npCmd('/me/player/previous'));
+  npNext && npNext.addEventListener('click', () => npCmd('/me/player/next'));
+
+  /* ---------- library browser ---------- */
+  let libMode = 'playlists';
+
+  async function loadLibrary() {
+    if (!libList) return;
+    libList.innerHTML = '<div class="lib-empty">loading…</div>';
+    const path = libMode === 'playlists' ? '/me/playlists?limit=50' : '/me/albums?limit=50';
+    const data = await spotifyFetch(path);
+    if (!data || !data.items) {
+      libList.innerHTML = '<div class="lib-empty">couldn’t load your library</div>';
+      return;
+    }
+    renderLibItems(data.items.map((it) => libMode === 'playlists' ? {
+      name: it.name,
+      sub: it.tracks ? it.tracks.total + ' tracks' : '',
+      img: it.images && it.images.length ? it.images[it.images.length - 1].url : null,
+      uri: it.uri,
+      type: 'playlist',
+    } : {
+      name: it.album.name,
+      sub: (it.album.artists || []).map((a) => a.name).join(', '),
+      img: it.album.images && it.album.images.length ? it.album.images[it.album.images.length - 1].url : null,
+      uri: it.album.uri,
+      type: 'album',
+    }));
+  }
+
+  function renderLibItems(items) {
+    libList.innerHTML = '';
+    if (!items.length) {
+      libList.innerHTML = '<div class="lib-empty">nothing here yet</div>';
+      return;
+    }
+    items.forEach((item) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'lib-item';
+      const img = document.createElement('img');
+      if (item.img) img.src = item.img;
+      img.alt = '';
+      const meta = document.createElement('div');
+      meta.style.minWidth = '0';
+      meta.style.flex = '1';
+      const name = document.createElement('div');
+      name.className = 'lib-name';
+      name.textContent = item.name;
+      const sub = document.createElement('div');
+      sub.className = 'lib-sub';
+      sub.textContent = item.sub;
+      meta.appendChild(name);
+      meta.appendChild(sub);
+      btn.appendChild(img);
+      btn.appendChild(meta);
+      btn.addEventListener('click', () => playUri(item.uri, item.type));
+      libList.appendChild(btn);
+    });
+  }
+
+  async function playUri(uri, type) {
+    // load into the embed for instant in-browser playback
+    const id = uri.split(':')[2];
+    if (id) {
+      spotifyUrl = 'https://open.spotify.com/' + type + '/' + id;
+      saveSpotify(spotifyUrl);
+      // also switch guest frame so it matches even after logout
+      loadMusicFrame();
+    }
+    // and try to start playback on the user's active device
+    if (isConnected()) {
+      await spotifyFetch('/me/player/play', {
+        method: 'PUT',
+        body: JSON.stringify(type === 'track' ? { uris: [uri] } : { context_uri: uri }),
+      });
+      setTimeout(pollNowPlaying, 500);
+    }
+    if (musicEq) musicEq.classList.remove('hidden');
+  }
+
+  function setLibMode(mode) {
+    libMode = mode;
+    if (libTabPlaylists) libTabPlaylists.classList.toggle('active', mode === 'playlists');
+    if (libTabAlbums) libTabAlbums.classList.toggle('active', mode === 'albums');
+    loadLibrary();
+  }
+  libTabPlaylists && libTabPlaylists.addEventListener('click', () => setLibMode('playlists'));
+  libTabAlbums && libTabAlbums.addEventListener('click', () => setLibMode('albums'));
+
+  connectBtn && connectBtn.addEventListener('click', spotifyLogin);
+  clientIdSave && clientIdSave.addEventListener('click', () => {
+    const id = clientIdInput.value.trim();
+    if (!id) return;
+    spClientId = id;
+    saveClientId(id);
+    clientIdRow.classList.add('hidden');
+    if (musicHint) musicHint.textContent = 'Client ID saved — now hit Connect Spotify.';
+  });
 
   function loadSpotify() {
     try { return localStorage.getItem(SPOTIFY_KEY) || DEFAULT_SPOTIFY; } catch { return DEFAULT_SPOTIFY; }
@@ -1575,8 +1896,9 @@
     musicOpen = true;
     musicPanel.classList.remove('hidden');
     requestAnimationFrame(() => requestAnimationFrame(() => musicPanel.classList.add('open')));
-    loadMusicFrame();
+    renderMusicPanel();
     if (musicInput) musicInput.value = spotifyUrl === DEFAULT_SPOTIFY ? '' : spotifyUrl;
+    if (clientIdInput && !clientIdInput.value) clientIdInput.value = spClientId || '';
   }
   function closeMusic() {
     if (!musicPanel) return;
@@ -1611,6 +1933,8 @@
   });
 
   loadMusicFrame(); // badge state on boot
+  handleSpotifyCallback(); // pick up ?code= after OAuth redirect
+  renderMusicPanel();
 
   /* ---------------- boot ---------------- */
   buildCarousel();

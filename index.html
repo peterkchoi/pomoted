@@ -228,16 +228,60 @@
       <span class="music-title">Now Playing</span>
       <button id="musicClose" class="todo-close" type="button" aria-label="Close player">&times;</button>
     </div>
-    <div class="music-frame-wrap" id="musicFrameWrap">
-      <iframe id="musicFrame" title="Spotify player" frameborder="0"
-        allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-        loading="lazy"></iframe>
+
+    <!-- connected: now playing bar -->
+    <div id="nowPlaying" class="now-playing hidden">
+      <img id="npArt" class="np-art" alt="" aria-hidden="true" />
+      <div class="np-meta">
+        <div class="np-track" id="npTrack">—</div>
+        <div class="np-artist" id="npArtist">—</div>
+      </div>
+      <div class="np-controls">
+        <button id="npPrev" class="np-ctrl" type="button" aria-label="Previous track">
+          <svg viewBox="0 0 24 24"><path d="M19 6v12l-8.5-6z" fill="currentColor"/><rect x="5" y="6" width="2.2" height="12" rx="1" fill="currentColor"/></svg>
+        </button>
+        <button id="npPlay" class="np-ctrl np-play" type="button" aria-label="Play or pause">
+          <svg viewBox="0 0 24 24" class="ic-pause"><rect x="6" y="5" width="4" height="14" rx="1.2" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1.2" fill="currentColor"/></svg>
+          <svg viewBox="0 0 24 24" class="ic-play hidden"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
+        </button>
+        <button id="npNext" class="np-ctrl" type="button" aria-label="Next track">
+          <svg viewBox="0 0 24 24"><path d="M5 6v12l8.5-6z" fill="currentColor"/><rect x="16.8" y="6" width="2.2" height="12" rx="1" fill="currentColor"/></svg>
+        </button>
+      </div>
     </div>
-    <form class="music-link-form" id="musicForm">
-      <input type="text" id="musicInput" placeholder="Paste a Spotify link…" autocomplete="off" spellcheck="false" />
-      <button type="submit" class="cat-create-btn">Load</button>
-    </form>
-    <p class="music-hint">Link a playlist, album, or track. Sign into Spotify in the player for full songs.</p>
+
+    <!-- connected: library browser -->
+    <div id="libraryWrap" class="library-wrap hidden">
+      <div class="lib-tabs">
+        <button class="lib-tab active" id="libTabPlaylists" type="button">Playlists</button>
+        <button class="lib-tab" id="libTabAlbums" type="button">Albums</button>
+      </div>
+      <div class="lib-list" id="libList"></div>
+    </div>
+
+    <!-- not connected: embed player + link loader + connect -->
+    <div id="musicGuest">
+      <div class="music-frame-wrap" id="musicFrameWrap">
+        <iframe id="musicFrame" title="Spotify player" frameborder="0"
+          allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+          loading="lazy"></iframe>
+      </div>
+      <form class="music-link-form" id="musicForm">
+        <input type="text" id="musicInput" placeholder="Paste a Spotify link…" autocomplete="off" spellcheck="false" />
+        <button type="submit" class="cat-create-btn">Load</button>
+      </form>
+      <div class="music-connect" id="musicConnectWrap">
+        <button id="musicConnect" class="connect-btn" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm4.6 14.5a.9.9 0 0 1-1.2.3c-3.4-2-7.6-2.5-10.4-1.4a.9.9 0 1 1-.5-1.7c3.2-1.3 8-.7 11.8 1.6.4.2.5.9.3 1.2zm1.2-3.1a1.1 1.1 0 0 1-1.5.4c-3.9-2.4-9.8-3.1-12.4-1.7a1.1 1.1 0 1 1-.7-2.1c3-1.5 9.6-.8 14 2 .5.3.7 1 .6 1.4zm.1-3.2C13.2 7.6 7.6 7.4 4.7 8.6a1.3 1.3 0 1 1-.8-2.5c3.5-1.4 9.7-1.1 14.7 1.9a1.3 1.3 0 0 1-1.4 2.2z" fill="currentColor"/></svg>
+          Connect Spotify
+        </button>
+        <div class="clientid-row hidden" id="clientIdRow">
+          <input type="text" id="clientIdInput" placeholder="Spotify Client ID…" autocomplete="off" spellcheck="false" />
+          <button id="clientIdSave" class="cat-create-btn" type="button">Save</button>
+        </div>
+        <p class="music-hint" id="musicHint">Sign in to browse your playlists and control playback.</p>
+      </div>
+    </div>
   </div>
 
   <!-- floating tasks button (timer tab) -->
