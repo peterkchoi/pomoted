@@ -938,12 +938,14 @@
 
   function tasksFor(key) { return todos[key] || []; }
 
-  /* ---------- categories ---------- */
+  /* ---------- categories (highlight-to-target model) ---------- */
   const CATS_KEY = 'pomoted-cats';
-  const todoCatSel   = $('#todoCat');
-  const planCatSel   = $('#planCat');
+  const ACTIVE_CAT_KEY = 'pomoted-active-cat';
+  const todoTargetEl = $('#todoTarget');
+  const planTargetEl = $('#planTarget');
 
   let cats = loadCats();
+  let activeCat = loadActiveCat();
 
   function loadCats() {
     try {
@@ -956,6 +958,34 @@
     try { localStorage.setItem(CATS_KEY, JSON.stringify(cats)); } catch { /* private mode */ }
   }
   function catById(id) { return cats.find((c) => c.id === id) || cats[0]; }
+  function catByIdSilent(id) { return cats.some((c) => c.id === id); }
+
+  function loadActiveCat() {
+    try {
+      const raw = localStorage.getItem(ACTIVE_CAT_KEY);
+      if (raw && catByIdSilent(raw)) return raw;
+    } catch { /* ignore */ }
+    return 'general';
+  }
+  function saveActiveCat() {
+    try { localStorage.setItem(ACTIVE_CAT_KEY, activeCat); } catch { /* private mode */ }
+  }
+
+  function setActiveCat(id) {
+    if (!catByIdSilent(id)) id = 'general';
+    activeCat = id;
+    saveActiveCat();
+    updateTargetLabels();
+  }
+
+  function updateTargetLabels() {
+    const name = catById(activeCat).name;
+    [todoTargetEl, planTargetEl].forEach((el) => {
+      if (!el) return;
+      el.innerHTML = 'adding to: <b></b>';
+      el.querySelector('b').textContent = name;
+    });
+  }
 
   // migrate old tasks without a category into "general"
   (function migrateTasks() {
@@ -969,23 +999,6 @@
     if (changed) saveTodos();
   })();
 
-  function catByIdSilent(id) { return cats.some((c) => c.id === id); }
-
-  function refreshCatSelects() {
-    [todoCatSel, planCatSel].forEach((sel) => {
-      if (!sel) return;
-      const cur = sel.value;
-      sel.innerHTML = '';
-      cats.forEach((c) => {
-        const o = document.createElement('option');
-        o.value = c.id;
-        o.textContent = c.name;
-        sel.appendChild(o);
-      });
-      if (cats.some((c) => c.id === cur)) sel.value = cur;
-    });
-  }
-
   function addCategory(name) {
     const clean = name.trim().slice(0, 30);
     if (!clean) return null;
@@ -993,7 +1006,7 @@
     const cat = { id: 'c' + Date.now().toString(36), name: clean, closed: false };
     cats.push(cat);
     saveCats();
-    refreshCatSelects();
+    setActiveCat(cat.id); // new category becomes the target right away
     return cat;
   }
 
@@ -1005,9 +1018,11 @@
       todos[k].forEach((t) => { if (t.cat === id) { t.cat = 'general'; changed = true; } });
     });
     cats = cats.filter((c) => c.id !== id);
+    if (activeCat === id) activeCat = 'general';
     if (changed) saveTodos();
     saveCats();
-    refreshCatSelects();
+    saveActiveCat();
+    updateTargetLabels();
   }
 
   function todayPending() {
@@ -1068,6 +1083,7 @@
 
   // shared task-row builder used by both the popout and the planner
   function refreshAllTaskViews() {
+    updateTargetLabels();
     renderTasks();
     renderWeek();
     renderBadge();
@@ -1137,10 +1153,19 @@
       head.type = 'button';
       head.className = 'cat-head' + (cat.closed ? ' closed' : '');
       head.setAttribute('aria-expanded', cat.closed ? 'false' : 'true');
+
+      // chevron: collapse/expand only
       const chev = document.createElement('span');
       chev.className = 'cat-chevron';
       chev.setAttribute('aria-hidden', 'true');
       chev.innerHTML = '<svg viewBox="0 0 24 24"><path d="M9 6.5 15 12l-6 5.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      chev.addEventListener('click', (e) => {
+        e.stopPropagation();
+        cat.closed = !cat.closed;
+        saveCats();
+        refreshAllTaskViews();
+      });
+
       const nameEl = document.createElement('span');
       nameEl.className = 'cat-name';
       nameEl.textContent = cat.name;
@@ -1165,9 +1190,10 @@
         head.appendChild(del);
       }
 
+      // clicking the header highlights the category as the add-target
       head.addEventListener('click', () => {
-        cat.closed = !cat.closed;
-        saveCats();
+        setActiveCat(cat.id);
+        if (cat.closed) { cat.closed = false; saveCats(); } // auto-open so you see new tasks
         refreshAllTaskViews();
       });
 
@@ -1180,7 +1206,7 @@
       }
 
       const section = document.createElement('div');
-      section.className = 'cat-section';
+      section.className = 'cat-section' + (cat.id === activeCat ? ' targeted' : '');
       section.appendChild(head);
       section.appendChild(bodyEl);
       listEl.appendChild(section);
@@ -1205,7 +1231,7 @@
     const text = todoInput.value.trim();
     if (!text) return;
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-    const cat = (todoCatSel && todoCatSel.value) || 'general';
+    const cat = activeCat;
     todos[selectedDate] = tasksFor(selectedDate).concat({ id, text, done: false, cat });
     saveTodos();
     todoInput.value = '';
@@ -1225,7 +1251,6 @@
       todoScrim.classList.add('open');
     }));
     selectedDate = todayKey();
-    refreshCatSelects();
     renderWeek();
     renderTasks();
     renderBadge();
@@ -1339,7 +1364,7 @@
   let calCursor = new Date(); // any day within the month being viewed
 
   function renderPlanner() {
-    refreshCatSelects();
+    updateTargetLabels();
     renderCalendar();
     renderPlanList();
     renderWeekRows();
@@ -1477,7 +1502,7 @@
     const text = planInput.value.trim();
     if (!text) return;
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-    const cat = (planCatSel && planCatSel.value) || 'general';
+    const cat = activeCat;
     todos[selectedDate] = tasksFor(selectedDate).concat({ id, text, done: false, cat });
     saveTodos();
     planInput.value = '';
@@ -1498,8 +1523,6 @@
       if (cat) {
         input.value = '';
         wrap.classList.add('hidden');
-        if (todoCatSel) todoCatSel.value = cat.id;
-        if (planCatSel) planCatSel.value = cat.id;
         refreshAllTaskViews();
       }
     };
@@ -1522,7 +1545,7 @@
   initSetup();
   layoutCarousel();
   applyTabVisibility();
-  refreshCatSelects();
+  updateTargetLabels();
   updateMiniTimer();
   if (activeTab === 'planner') renderPlanner();
   showScreen(setupEl);
