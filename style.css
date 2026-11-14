@@ -1398,7 +1398,28 @@ body[data-phase="short"] .mini-ring-fg, body[data-phase="long"] .mini-ring-fg { 
   flex-direction: column;
   gap: 6px;
   scrollbar-width: thin;
+  transition: opacity .22s ease, transform .22s ease;
 }
+/* view-swap transitions */
+.lib-list.fade-out { opacity: 0; transform: translateX(14px); }
+.lib-list.slide-in-right { animation: libInRight .38s var(--ease-out); }
+.lib-list.slide-in-left  { animation: libInLeft .38s var(--ease-out); }
+@keyframes libInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes libInLeft {
+  from { opacity: 0; transform: translateX(-20px); }
+  to   { opacity: 1; transform: none; }
+}
+/* head swap: elements animate in whenever they reappear */
+.lib-back:not(.hidden), .lib-title:not(.hidden) { animation: libHeadIn .32s var(--ease-out); }
+@keyframes libHeadIn {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: none; }
+}
+.lib-head .lib-tabs:not(.hidden) { animation: libFadeIn .3s ease; }
+@keyframes libFadeIn { from { opacity: 0; } to { opacity: 1; } }
 .lib-item {
   display: flex;
   align-items: center;

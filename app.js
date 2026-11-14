@@ -1922,6 +1922,14 @@
     });
   }
 
+  /* ---------- view transitions ---------- */
+  function animateLib(dir) {
+    if (!libList) return;
+    libList.classList.remove('slide-in-right', 'slide-in-left');
+    void libList.offsetWidth; // restart animation
+    libList.classList.add(dir === 'forward' ? 'slide-in-right' : 'slide-in-left');
+  }
+
   /* ---------- drill into a playlist/album: list its tracks ---------- */
   async function openContent(uri, type, name) {
     const id = uri.split(':')[2];
@@ -1931,35 +1939,59 @@
     if (libTitle) { libTitle.classList.remove('hidden'); libTitle.textContent = name; }
     if (libTabs) libTabs.classList.add('hidden');
     libList.innerHTML = '<div class="lib-empty">loading tracks…</div>';
+    animateLib('forward');
 
     let tracks = [];
     if (type === 'playlist') {
-      const data = await spotifyFetch('/playlists/' + id + '/tracks?limit=100');
-      if (data && data.items) {
-        tracks = data.items.map((it) => it.track).filter(Boolean).map((t) => ({
-          name: t.name,
-          sub: (t.artists || []).map((a) => a.name).join(', '),
-          dur: fmtDuration(t.duration_ms),
-          uri: t.uri,
-          contextUri: uri,
-        }));
+      // Spotify returns playlist entries as items[].track on old API shape,
+      // items[].item on the new shape — support both, skip episodes/local files
+      let url = '/playlists/' + id + '/tracks?limit=100';
+      let guard = 0;
+      while (url && guard++ < 5) {
+        const data = await spotifyFetch(url);
+        if (!data) {
+          libList.innerHTML = '<div class="lib-empty">couldn’t load tracks — check your connection</div>';
+          return;
+        }
+        (data.items || []).forEach((it) => {
+          const t = it.track || it.item; // old + new API shapes
+          if (!t || !t.uri || t.type === 'episode') return;
+          tracks.push({
+            name: t.name,
+            sub: (t.artists || []).map((a) => a.name).join(', '),
+            dur: fmtDuration(t.duration_ms),
+            uri: t.uri,
+            contextUri: uri,
+          });
+        });
+        url = data.next ? data.next.replace('https://api.spotify.com/v1', '') : null;
       }
     } else if (type === 'album') {
-      const data = await spotifyFetch('/albums/' + id + '/tracks?limit=50');
-      if (data && data.items) {
-        tracks = data.items.map((t) => ({
-          name: t.name,
-          sub: (t.artists || []).map((a) => a.name).join(', '),
-          dur: fmtDuration(t.duration_ms),
-          uri: t.uri,
-          contextUri: uri,
-        }));
+      let url = '/albums/' + id + '/tracks?limit=50';
+      let guard = 0;
+      while (url && guard++ < 5) {
+        const data = await spotifyFetch(url);
+        if (!data) {
+          libList.innerHTML = '<div class="lib-empty">couldn’t load tracks — check your connection</div>';
+          return;
+        }
+        (data.items || []).forEach((t) => {
+          if (!t || !t.uri) return;
+          tracks.push({
+            name: t.name,
+            sub: (t.artists || []).map((a) => a.name).join(', '),
+            dur: fmtDuration(t.duration_ms),
+            uri: t.uri,
+            contextUri: uri,
+          });
+        });
+        url = data.next ? data.next.replace('https://api.spotify.com/v1', '') : null;
       }
     }
 
     libList.innerHTML = '';
     if (!tracks.length) {
-      libList.innerHTML = '<div class="lib-empty">no tracks found</div>';
+      libList.innerHTML = '<div class="lib-empty">no playable tracks in this playlist</div>';
       return;
     }
     tracks.forEach((t) => {
@@ -1986,6 +2018,7 @@
       row.addEventListener('click', () => playTrack(t.contextUri, t.uri));
       libList.appendChild(row);
     });
+    animateLib('forward'); // replay entrance once tracks are actually in
   }
 
   function fmtDuration(ms) {
@@ -1995,11 +2028,12 @@
   }
 
   function showLibraryRoot() {
+    const wasTracks = libView === 'tracks';
     libView = 'root';
     if (libBack) libBack.classList.add('hidden');
     if (libTitle) libTitle.classList.add('hidden');
     if (libTabs) libTabs.classList.remove('hidden');
-    loadLibrary();
+    loadLibrary().then(() => { if (wasTracks) animateLib('back'); });
   }
 
   function markPlayingTrack(uri) {
@@ -2068,7 +2102,7 @@
     libMode = mode;
     if (libTabPlaylists) libTabPlaylists.classList.toggle('active', mode === 'playlists');
     if (libTabAlbums) libTabAlbums.classList.toggle('active', mode === 'albums');
-    loadLibrary();
+    loadLibrary().then(() => animateLib(mode === 'playlists' ? 'back' : 'forward'));
   }
   libTabPlaylists && libTabPlaylists.addEventListener('click', () => setLibMode('playlists'));
   libTabAlbums && libTabAlbums.addEventListener('click', () => setLibMode('albums'));
