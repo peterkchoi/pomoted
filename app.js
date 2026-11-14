@@ -1532,47 +1532,63 @@
   wireCatCreator($('#todoCatToggle'), $('#todoCatNew'), $('#todoCatInput'), $('#todoCatAdd'));
   wireCatCreator($('#planCatToggle'), $('#planCatNew'), $('#planCatInput'), $('#planCatAdd'));
 
-  /* ---------------- spotify player ---------------- */
+  /* ================================================================
+     spotify player — playlists only
+     connect → pick a playlist → see its tracks → tap to play
+     ================================================================ */
   const SPOTIFY_KEY = 'pomoted-spotify';
   const CID_KEY = 'pomoted-spotify-cid';
   const TOKEN_KEY = 'pomoted-spotify-tokens';
-  const musicBtn    = $('#musicBtn');
-  const musicEq     = $('#musicEq');
-  const musicPanel  = $('#musicPanel');
-  const musicClose  = $('#musicClose');
-  const musicFrame  = $('#musicFrame');
-  const musicForm   = $('#musicForm');
-  const musicInput  = $('#musicInput');
-  const musicHint   = $('#musicHint');
-  const musicGuest  = $('#musicGuest');
-  const nowPlaying  = $('#nowPlaying');
-  const npArt       = $('#npArt');
-  const npTrack     = $('#npTrack');
-  const npArtist    = $('#npArtist');
-  const npPlay      = $('#npPlay');
-  const npPrev      = $('#npPrev');
-  const npNext      = $('#npNext');
-  const libraryWrap = $('#libraryWrap');
-  const libList     = $('#libList');
-  const libTabPlaylists = $('#libTabPlaylists');
-  const libTabAlbums    = $('#libTabAlbums');
-  const connectBtn  = $('#musicConnect');
-  const clientIdRow = $('#clientIdRow');
+
+  const musicBtn      = $('#musicBtn');
+  const musicEq       = $('#musicEq');
+  const musicPanel    = $('#musicPanel');
+  const musicClose    = $('#musicClose');
+  const musicFrame    = $('#musicFrame');
+  const musicForm     = $('#musicForm');
+  const musicInput    = $('#musicInput');
+  const musicHint     = $('#musicHint');
+  const musicGuest    = $('#musicGuest');
+  const nowPlaying    = $('#nowPlaying');
+  const npArt         = $('#npArt');
+  const npTrack       = $('#npTrack');
+  const npArtist      = $('#npArtist');
+  const npPlay        = $('#npPlay');
+  const npPrev        = $('#npPrev');
+  const npNext        = $('#npNext');
+  const libraryWrap   = $('#libraryWrap');
+  const libList       = $('#libList');
+  const libBack       = $('#libBack');
+  const libTitle      = $('#libTitle');
+  const libTabs       = $('#libTabs');
+  const connectBtn    = $('#musicConnect');
+  const clientIdRow   = $('#clientIdRow');
   const clientIdInput = $('#clientIdInput');
   const clientIdSave  = $('#clientIdSave');
 
   // default: Spotify's "lofi beats" editorial playlist
   const DEFAULT_SPOTIFY = 'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M';
+  const SCOPES = [
+    'streaming', 'user-read-email', 'user-read-private',
+    'user-read-currently-playing', 'user-read-playback-state',
+    'user-modify-playback-state', 'user-library-read',
+    'playlist-read-private', 'playlist-read-collaborative',
+  ].join(' ');
 
-  let spotifyUrl = loadSpotify();
   let musicOpen = false;
-
-  /* ---------- auth (PKCE, no backend needed) ---------- */
+  let libView = 'root';          // 'root' | 'tracks'
+  let playingUri = null;
   let spTokens = loadTokens();
   let spClientId = loadClientId();
   let npTimer = null;
-  let spUserId = null; // used to tell owned playlists from restricted ones
 
+  /* ---------------- storage ---------------- */
+  function loadSpotify() {
+    try { return localStorage.getItem(SPOTIFY_KEY) || DEFAULT_SPOTIFY; } catch { return DEFAULT_SPOTIFY; }
+  }
+  function saveSpotify(url) {
+    try { localStorage.setItem(SPOTIFY_KEY, url); } catch { /* ignore */ }
+  }
   function loadClientId() {
     try { return localStorage.getItem(CID_KEY) || ''; } catch { return ''; }
   }
@@ -1582,21 +1598,21 @@
   function loadTokens() {
     try {
       const t = JSON.parse(localStorage.getItem(TOKEN_KEY));
-      // tokens from before the streaming scope was added can't drive the SDK
-      if (t && t.v === 2) return t;
-      return null;
-    } catch { return null; }
+      if (t && t.access_token && t.refresh_token && t.v === 3) return t;
+    } catch { /* ignore */ }
+    return null;
   }
   function saveTokens(t) {
     try { localStorage.setItem(TOKEN_KEY, JSON.stringify(t)); } catch { /* ignore */ }
   }
-  function isConnected() { return !!(spTokens && spTokens.access_token); }
+  function isConnected() { return !!spTokens; }
 
+  /* ---------------- auth: PKCE, no backend ---------------- */
   function randomString(len) {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let out = '';
     const arr = new Uint8Array(len);
     crypto.getRandomValues(arr);
+    let out = '';
     for (let i = 0; i < len; i++) out += chars[arr[i] % chars.length];
     return out;
   }
@@ -1610,20 +1626,20 @@
   async function spotifyLogin() {
     if (!spClientId) {
       if (clientIdRow) clientIdRow.classList.remove('hidden');
-      if (musicHint) musicHint.textContent = 'Paste your Spotify Client ID first (free at developer.spotify.com), then Save and Connect.';
+      if (musicHint) musicHint.textContent = 'Paste your Spotify Client ID (free at developer.spotify.com), Save, then Connect.';
       return;
     }
     const verifier = randomString(64);
     const challenge = await sha256b64(verifier);
     try { sessionStorage.setItem('pomoted-spotify-verifier', verifier); } catch { /* ignore */ }
-    const redirectUri = location.origin + location.pathname;
     const params = new URLSearchParams({
       client_id: spClientId,
       response_type: 'code',
-      redirect_uri: redirectUri,
+      redirect_uri: location.origin + location.pathname,
       code_challenge_method: 'S256',
       code_challenge: challenge,
-      scope: 'streaming user-read-email user-read-private user-read-currently-playing user-read-playback-state user-modify-playback-state user-library-read playlist-read-private playlist-read-collaborative',
+      scope: SCOPES,
+      show_dialog: 'true', // always re-consent so new scopes take effect
     });
     location.href = 'https://accounts.spotify.com/authorize?' + params.toString();
   }
@@ -1632,10 +1648,9 @@
     const params = new URLSearchParams(location.search);
     const code = params.get('code');
     if (!code) return;
+    try { history.replaceState(null, '', location.origin + location.pathname); } catch { /* ignore */ }
     let verifier = null;
     try { verifier = sessionStorage.getItem('pomoted-spotify-verifier'); } catch { /* ignore */ }
-    // clean the URL
-    try { history.replaceState(null, '', location.origin + location.pathname); } catch { /* ignore */ }
     if (!verifier || !spClientId) return;
     try {
       const res = await fetch('https://accounts.spotify.com/api/token', {
@@ -1655,12 +1670,12 @@
           access_token: data.access_token,
           refresh_token: data.refresh_token,
           expires_at: Date.now() + data.expires_in * 1000,
-          v: 2, // scope version: includes streaming
+          v: 3,
         };
         saveTokens(spTokens);
         renderMusicPanel();
       }
-    } catch { /* network fail — stay in guest mode */ }
+    } catch { /* stay in guest mode */ }
   }
 
   async function refreshSpotifyToken() {
@@ -1687,95 +1702,71 @@
     return false;
   }
 
-  let lastApiError = 0;
-  let lastApiErrorMsg = '';
-
-  async function readSpotifyError(res) {
-    lastApiError = res.status;
-    lastApiErrorMsg = '';
-    try {
-      const body = await res.json();
-      if (body && body.error) {
-        lastApiErrorMsg = body.error.message || (typeof body.error === 'string' ? body.error : '');
-      }
-    } catch { /* no json body */ }
-  }
-
+  /* ---------------- api fetch: silent, one refresh retry ---------------- */
   async function spotifyFetch(path, options) {
     if (!spTokens) return null;
     if (Date.now() > spTokens.expires_at - 60000) {
       const ok = await refreshSpotifyToken();
       if (!ok) return null;
     }
+    const headers = { Authorization: 'Bearer ' + spTokens.access_token };
+    if (options && options.body) headers['Content-Type'] = 'application/json';
     try {
-      const res = await fetch('https://api.spotify.com/v1' + path, Object.assign({}, options, {
-        headers: { Authorization: 'Bearer ' + spTokens.access_token },
-      }));
-      if (res.status === 401) { // token died — force one refresh retry
+      let res = await fetch('https://api.spotify.com/v1' + path, Object.assign({}, options, { headers }));
+      if (res.status === 401) {
         const ok = await refreshSpotifyToken();
         if (!ok) return null;
-        const retry = await fetch('https://api.spotify.com/v1' + path, Object.assign({}, options, {
-          headers: { Authorization: 'Bearer ' + spTokens.access_token },
-        }));
-        if (retry.status === 204) return {};
-        if (!retry.ok) await readSpotifyError(retry);
-        return retry.ok ? retry.json() : null;
+        headers.Authorization = 'Bearer ' + spTokens.access_token;
+        res = await fetch('https://api.spotify.com/v1' + path, Object.assign({}, options, { headers }));
       }
       if (res.status === 204) return {};
-      if (!res.ok) await readSpotifyError(res);
       return res.ok ? res.json() : null;
-    } catch { lastApiError = -1; lastApiErrorMsg = 'network'; return null; }
+    } catch { return null; }
   }
 
-  function spotifyLogout() {
-    spTokens = null;
-    try { localStorage.removeItem(TOKEN_KEY); } catch { /* ignore */ }
-    renderMusicPanel();
-  }
-
-  /* ---------- Web Playback SDK (browser becomes a playback device) ---------- */
+  /* ---------------- web playback sdk: browser becomes the device ---------------- */
   let spPlayer = null;
   let spDeviceId = null;
   let sdkReady = false;
   let sdkFailed = false;
+  let npIsPlaying = false;
 
   function loadSpotifySdk() {
+    if (typeof document.getElementById !== 'function') return;
     if (document.getElementById('spotify-sdk') || !isConnected()) return;
     const s = document.createElement('script');
     s.id = 'spotify-sdk';
     s.src = 'https://sdk.scdn.co/spotify-player.js';
-    s.onerror = () => { sdkFailed = true; };
-    document.body.appendChild(s);
+    s.onerror = () => { sdkFailed = true; renderMusicPanel(); };
+    (document.body || document.documentElement).appendChild(s);
   }
 
-  // called by the SDK once loaded
   window.onSpotifyWebPlaybackSDKReady = () => {
     if (!isConnected() || spPlayer) return;
-    spPlayer = new window.Spotify.Player({
-      name: 'pomoted',
-      getOAuthToken: async (cb) => {
-        if (Date.now() > spTokens.expires_at - 60000) await refreshSpotifyToken();
-        cb(spTokens ? spTokens.access_token : '');
-      },
-      volume: 0.5,
-    });
+    try {
+      spPlayer = new window.Spotify.Player({
+        name: 'pomoted',
+        getOAuthToken: async (cb) => {
+          if (Date.now() > spTokens.expires_at - 60000) await refreshSpotifyToken();
+          cb(spTokens ? spTokens.access_token : '');
+        },
+        volume: 0.5,
+      });
+    } catch { sdkFailed = true; renderMusicPanel(); return; }
 
     spPlayer.addListener('ready', ({ device_id }) => {
       sdkReady = true;
       spDeviceId = device_id;
-      // make pomoted the active device so API commands target the browser
+      stopNpPolling(); // SDK drives now-playing state
       spotifyFetch('/me/player', { method: 'PUT', body: JSON.stringify({ device_ids: [device_id], play: false }) });
     });
     spPlayer.addListener('not_ready', () => { sdkReady = false; });
     spPlayer.addListener('account_error', () => {
-      // free accounts can't use the SDK — embed previews still work
-      sdkFailed = true;
-      if (musicHint) {
-        musicHint.classList.remove('hidden');
-        musicHint.textContent = 'Full in-browser playback needs Spotify Premium — previews still play below.';
-      }
+      sdkFailed = true; // free tier: embed previews still work
+      startNpPolling();
+      renderMusicPanel();
     });
-    spPlayer.addListener('authentication_error', () => { sdkFailed = true; });
+    spPlayer.addListener('authentication_error', () => { sdkFailed = true; renderMusicPanel(); });
     spPlayer.addListener('player_state_changed', (state) => {
       if (!state) return;
       const track = state.track_window && state.track_window.current_track;
@@ -1787,62 +1778,38 @@
         if (img && npArt) npArt.src = img;
         markPlayingTrack(track.uri);
       }
-      npIsPlaying = !state.paused;
-      if (npPlay) {
-        const pauseIc = npPlay.querySelector('.ic-pause');
-        const playIc = npPlay.querySelector('.ic-play');
-        if (pauseIc) pauseIc.classList.toggle('hidden', !npIsPlaying);
-        if (playIc) playIc.classList.toggle('hidden', npIsPlaying);
-      }
+      setNpPlaying(!state.paused);
     });
     spPlayer.connect();
   };
 
-  /* ---------- panel rendering ---------- */
-  function renderMusicPanel() {
-    const connected = isConnected();
-    // guest section stays visible when the SDK can't play (free tier) so previews still work
-    const showGuest = !connected || sdkFailed;
-    if (musicGuest) musicGuest.classList.toggle('hidden', !showGuest);
-    if (nowPlaying) nowPlaying.classList.toggle('hidden', !connected);
-    if (libraryWrap) libraryWrap.classList.toggle('hidden', !connected);
-    if (connected) {
-      loadSpotifySdk();
-      pollNowPlaying();
-      showLibraryRoot();
-      // no API polling when the SDK drives the now-playing state
-      if (!sdkReady) startNpPolling(); else stopNpPolling();
-    } else {
-      stopNpPolling();
-      loadMusicFrame();
-    }
+  function setNpPlaying(playing) {
+    npIsPlaying = playing;
+    if (!npPlay) return;
+    const pauseIc = npPlay.querySelector('.ic-pause');
+    const playIc = npPlay.querySelector('.ic-play');
+    if (pauseIc) pauseIc.classList.toggle('hidden', !playing);
+    if (playIc) playIc.classList.toggle('hidden', playing);
   }
 
-  /* ---------- now playing + controls ---------- */
-  let npIsPlaying = false;
-
+  /* ---------------- now playing ---------------- */
   async function pollNowPlaying() {
     const data = await spotifyFetch('/me/player/currently-playing');
     if (!data || !data.item) {
       npTrack.textContent = 'Nothing playing';
-      npArtist.textContent = 'pick something from your library below';
+      npArtist.textContent = 'pick a playlist below';
       if (npArt) npArt.removeAttribute('src');
-      npIsPlaying = false;
-    } else {
-      const item = data.item;
-      npTrack.textContent = item.name || '—';
-      npArtist.textContent = (item.artists || []).map((a) => a.name).join(', ') || (item.show && item.show.name) || '—';
-      const img = item.album && item.album.images && item.album.images.length
-        ? item.album.images[item.album.images.length - 1].url : null;
-      if (img && npArt) npArt.src = img;
-      npIsPlaying = !!data.is_playing;
+      setNpPlaying(false);
+      return;
     }
-    if (npPlay) {
-      const pauseIc = npPlay.querySelector('.ic-pause');
-      const playIc = npPlay.querySelector('.ic-play');
-      if (pauseIc) pauseIc.classList.toggle('hidden', !npIsPlaying);
-      if (playIc) playIc.classList.toggle('hidden', npIsPlaying);
-    }
+    const item = data.item;
+    npTrack.textContent = item.name || '—';
+    npArtist.textContent = (item.artists || []).map((a) => a.name).join(', ') || (item.show && item.show.name) || '—';
+    const img = item.album && item.album.images && item.album.images.length
+      ? item.album.images[item.album.images.length - 1].url : null;
+    if (img && npArt) npArt.src = img;
+    markPlayingTrack(item.uri);
+    setNpPlaying(!!data.is_playing);
   }
 
   function startNpPolling() {
@@ -1854,101 +1821,89 @@
     npTimer = null;
   }
 
-  async function npCmd(path, method) {
-    const res = await spotifyFetch(path, { method: method || 'POST' });
-    setTimeout(pollNowPlaying, 400); // give the API a beat to catch up
-    return res;
-  }
-
-  // transport: use the SDK player when the browser is the device, else the API
+  /* ---------------- transport ---------------- */
   npPlay && npPlay.addEventListener('click', () => {
     if (sdkReady && spPlayer) { spPlayer.togglePlay(); return; }
-    npCmd(npIsPlaying ? '/me/player/pause' : '/me/player/play', 'PUT');
+    spotifyFetch(npIsPlaying ? '/me/player/pause' : '/me/player/play', { method: 'PUT' })
+      .then(() => setTimeout(pollNowPlaying, 400));
   });
   npPrev && npPrev.addEventListener('click', () => {
     if (sdkReady && spPlayer) { spPlayer.previousTrack(); return; }
-    npCmd('/me/player/previous');
+    spotifyFetch('/me/player/previous', { method: 'POST' }).then(() => setTimeout(pollNowPlaying, 400));
   });
   npNext && npNext.addEventListener('click', () => {
     if (sdkReady && spPlayer) { spPlayer.nextTrack(); return; }
-    npCmd('/me/player/next');
+    spotifyFetch('/me/player/next', { method: 'POST' }).then(() => setTimeout(pollNowPlaying, 400));
   });
 
-  /* ---------- library browser + track drill-down ---------- */
-  let libMode = 'playlists';
-  let libView = 'root'; // 'root' | 'tracks'
-  let playingUri = null;
-  const libBack  = $('#libBack');
-  const libTitle = $('#libTitle');
-  const libTabs  = $('#libTabs');
-
-  libBack && libBack.addEventListener('click', () => showLibraryRoot());
-
-  async function loadLibrary() {
-    if (!libList) return;
-    libList.innerHTML = '<div class="lib-empty">loading…</div>';
-    const path = libMode === 'playlists' ? '/me/playlists?limit=50' : '/me/albums?limit=50';
-    const data = await spotifyFetch(path);
-    if (!data || !data.items) {
-      libList.innerHTML = '<div class="lib-empty">couldn’t load your library</div>';
-      return;
+  /* ---------------- panel rendering ---------------- */
+  function renderMusicPanel() {
+    const connected = isConnected();
+    // guest embed section shows for guests, or as fallback when SDK can't play (free tier)
+    const showGuest = !connected || sdkFailed;
+    if (musicGuest) musicGuest.classList.toggle('hidden', !showGuest);
+    if (nowPlaying) nowPlaying.classList.toggle('hidden', !connected);
+    if (libraryWrap) libraryWrap.classList.toggle('hidden', !connected);
+    if (connected) {
+      loadSpotifySdk();
+      pollNowPlaying();
+      if (!sdkReady) startNpPolling(); else stopNpPolling();
+      showLibraryRoot();
+    } else {
+      stopNpPolling();
+      loadMusicFrame();
     }
-    renderLibItems(data.items.map((it) => libMode === 'playlists' ? {
-      name: it.name,
-      sub: it.tracks ? it.tracks.total + ' tracks' : '',
-      img: it.images && it.images.length ? it.images[it.images.length - 1].url : null,
-      uri: it.uri,
-      type: 'playlist',
-    } : {
-      name: it.album.name,
-      sub: (it.album.artists || []).map((a) => a.name).join(', '),
-      img: it.album.images && it.album.images.length ? it.album.images[it.album.images.length - 1].url : null,
-      uri: it.album.uri,
-      type: 'album',
-    }));
   }
 
-  function renderLibItems(items) {
-    libList.innerHTML = '';
-    if (!items.length) {
-      libList.innerHTML = '<div class="lib-empty">nothing here yet</div>';
+  /* ---------------- library: playlists root ---------------- */
+  async function loadPlaylists() {
+    if (!libList) return;
+    libList.innerHTML = '<div class="lib-empty">Loading…</div>';
+    const data = await spotifyFetch('/me/playlists?limit=50');
+    if (!data || !data.items) {
+      libList.innerHTML = '<div class="lib-empty">Loading…</div>'; // silent retry-friendly state
       return;
     }
-    items.forEach((item) => {
+    libList.innerHTML = '';
+    if (!data.items.length) {
+      libList.innerHTML = '<div class="lib-empty">No playlists yet</div>';
+      return;
+    }
+    data.items.forEach((it) => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'lib-item';
       const img = document.createElement('img');
-      if (item.img) img.src = item.img;
+      if (it.images && it.images.length) img.src = it.images[it.images.length - 1].url;
       img.alt = '';
       const meta = document.createElement('div');
       meta.style.minWidth = '0';
       meta.style.flex = '1';
       const name = document.createElement('div');
       name.className = 'lib-name';
-      name.textContent = item.name;
+      name.textContent = it.name;
       const sub = document.createElement('div');
       sub.className = 'lib-sub';
-      sub.textContent = item.sub;
+      sub.textContent = (it.tracks && typeof it.tracks.total === 'number') ? it.tracks.total + ' tracks' : '';
       meta.appendChild(name);
       meta.appendChild(sub);
       btn.appendChild(img);
       btn.appendChild(meta);
-      btn.addEventListener('click', () => openContent(item.uri, item.type, item.name));
+      btn.addEventListener('click', () => openPlaylist(it.uri, it.name));
       libList.appendChild(btn);
     });
   }
 
-  /* ---------- view transitions ---------- */
-  function animateLib(dir) {
-    if (!libList) return;
-    libList.classList.remove('slide-in-right', 'slide-in-left');
-    void libList.offsetWidth; // restart animation
-    libList.classList.add(dir === 'forward' ? 'slide-in-right' : 'slide-in-left');
+  function showLibraryRoot() {
+    libView = 'root';
+    if (libBack) libBack.classList.add('hidden');
+    if (libTitle) libTitle.classList.add('hidden');
+    if (libTabs) libTabs.classList.remove('hidden');
+    loadPlaylists().then(() => animateLib('back'));
   }
 
-  /* ---------- drill into a playlist/album: list its tracks ---------- */
-  async function openContent(uri, type, name) {
+  /* ---------------- track drill-down ---------------- */
+  async function openPlaylist(uri, name) {
     const id = uri.split(':')[2];
     if (!id) return;
     libView = 'tracks';
@@ -1956,70 +1911,51 @@
     if (libTitle) { libTitle.classList.remove('hidden'); libTitle.textContent = name; }
     if (libTabs) libTabs.classList.add('hidden');
     libList.classList.add('fade-out');
-    await new Promise((r) => setTimeout(r, 220));
-    libList.innerHTML = '<div class="lib-empty">loading tracks…</div>';
+    await new Promise((r) => setTimeout(r, 200));
+    libList.innerHTML = '<div class="lib-empty">Loading…</div>';
     libList.classList.remove('fade-out');
     animateLib('forward');
 
-    let tracks = [];
-    if (type === 'playlist') {
-      // Spotify returns playlist entries as items[].track on old API shape,
-      // items[].item on the new shape — support both, skip episodes/local files
-      let url = '/playlists/' + id + '/tracks?limit=100&market=from_token';
-      let guard = 0;
-      while (url && guard++ < 5) {
-        const data = await spotifyFetch(url);
-        if (!data) {
-          if (lastApiError === 403) { showRestrictedPlaylist(uri, type, name); return; }
-          libList.innerHTML = '<div class="lib-empty">couldn’t load tracks (error ' + lastApiError + ') — try reconnecting</div>';
-          return;
-        }
-        (data.items || []).forEach((it) => {
-          const t = it.track || it.item; // old + new API shapes
-          if (!t || !t.uri || t.type === 'episode') return;
-          tracks.push({
-            name: t.name,
-            sub: (t.artists || []).map((a) => a.name).join(', '),
-            dur: fmtDuration(t.duration_ms),
-            uri: t.uri,
-            contextUri: uri,
-          });
+    const tracks = [];
+    let url = '/playlists/' + id + '/tracks?limit=100&market=from_token';
+    let guard = 0;
+    let failed = false;
+    while (url && guard++ < 5) {
+      const data = await spotifyFetch(url);
+      if (!data) { failed = true; break; }
+      (data.items || []).forEach((it) => {
+        const t = it.track || it.item; // old + new API shapes
+        if (!t || !t.uri || t.type === 'episode') return;
+        tracks.push({
+          name: t.name,
+          sub: (t.artists || []).map((a) => a.name).join(', '),
+          dur: fmtDuration(t.duration_ms),
+          uri: t.uri,
         });
-        url = data.next ? data.next.replace('https://api.spotify.com/v1', '') : null;
-      }
-    } else if (type === 'album') {
-      let url = '/albums/' + id + '/tracks?limit=50&market=from_token';
-      let guard = 0;
-      while (url && guard++ < 5) {
-        const data = await spotifyFetch(url);
-        if (!data) {
-          libList.innerHTML = '<div class="lib-empty">couldn’t load tracks — check your connection</div>';
-          return;
-        }
-        (data.items || []).forEach((t) => {
-          if (!t || !t.uri) return;
-          tracks.push({
-            name: t.name,
-            sub: (t.artists || []).map((a) => a.name).join(', '),
-            dur: fmtDuration(t.duration_ms),
-            uri: t.uri,
-            contextUri: uri,
-          });
-        });
-        url = data.next ? data.next.replace('https://api.spotify.com/v1', '') : null;
-      }
+      });
+      url = data.next ? data.next.replace('https://api.spotify.com/v1', '') : null;
     }
 
-    libList.innerHTML = '';
-    if (!tracks.length) {
-      libList.innerHTML = '<div class="lib-empty">no playable tracks in this playlist</div>';
+    if (failed || !tracks.length) {
+      // seamless fallback: let the embed show the playlist instead of an error
+      if (musicFrame) musicFrame.src = 'https://open.spotify.com/embed/playlist/' + id + '?utm_source=generator&theme=0';
+      if (musicGuest) musicGuest.classList.remove('hidden');
+      libList.innerHTML = '<div class="lib-empty">Showing player below</div>';
+      animateLib('forward');
       return;
     }
-    tracks.forEach((t) => {
+
+    renderTracks(tracks, uri);
+  }
+
+  function renderTracks(tracks, contextUri) {
+    libList.innerHTML = '';
+    tracks.forEach((t, i) => {
       const row = document.createElement('button');
       row.type = 'button';
       row.className = 'lib-item' + (t.uri === playingUri ? ' playing' : '');
       row.dataset.uri = t.uri;
+      row.style.animationDelay = Math.min(i * 30, 200) + 'ms';
       const meta = document.createElement('div');
       meta.style.minWidth = '0';
       meta.style.flex = '1';
@@ -2036,57 +1972,15 @@
       dur.textContent = t.dur;
       row.appendChild(meta);
       row.appendChild(dur);
-      row.addEventListener('click', () => playTrack(t.contextUri, t.uri));
+      row.addEventListener('click', () => playTrack(contextUri, t.uri));
       libList.appendChild(row);
     });
-    animateLib('forward'); // replay entrance once tracks are actually in
-  }
-
-  // 403 on tracks = Spotify restricts browsing (editorial/others' playlists for dev apps)
-  // — but playback still works, so offer a direct play path
-  function showRestrictedPlaylist(uri, type, name) {
-    libList.innerHTML = '';
-    const note = document.createElement('div');
-    note.className = 'lib-empty';
-    const reason = lastApiErrorMsg ? ' (' + lastApiErrorMsg + ')' : '';
-    note.textContent = 'Can’t list these tracks' + reason + ' — but you can still play it.';
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'cat-create-btn';
-    btn.style.margin = '10px auto 6px';
-    btn.style.display = 'block';
-    btn.textContent = 'Play "' + name + '"';
-    btn.addEventListener('click', () => playUri(uri, type));
-    libList.appendChild(note);
-    libList.appendChild(btn);
-
-    // the embed isn't subject to the API restriction — load the full playlist there
-    const id = uri.split(':')[2];
-    if (id && musicFrame) {
-      musicFrame.src = 'https://open.spotify.com/embed/' + type + '/' + id + '?utm_source=generator&theme=0';
-      if (musicGuest) musicGuest.classList.remove('hidden');
-    }
   }
 
   function fmtDuration(ms) {
     if (!ms) return '';
     const s = Math.round(ms / 1000);
     return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
-  }
-
-  async function showLibraryRoot() {
-    const wasTracks = libView === 'tracks';
-    libView = 'root';
-    if (libBack) libBack.classList.add('hidden');
-    if (libTitle) libTitle.classList.add('hidden');
-    if (libTabs) libTabs.classList.remove('hidden');
-    if (wasTracks) {
-      libList.classList.add('fade-out');
-      await new Promise((r) => setTimeout(r, 220));
-    }
-    await loadLibrary();
-    libList.classList.remove('fade-out');
-    if (wasTracks) animateLib('back');
   }
 
   function markPlayingTrack(uri) {
@@ -2097,28 +1991,25 @@
     });
   }
 
-  /* ---------- playback ---------- */
+  /* ---------------- playback ---------------- */
   async function playTrack(contextUri, trackUri) {
     markPlayingTrack(trackUri);
     if (musicEq) musicEq.classList.remove('hidden');
-
     if (sdkReady && spDeviceId) {
-      // full playback right here in the browser
       await spotifyFetch('/me/player/play?device_id=' + spDeviceId, {
         method: 'PUT',
         body: JSON.stringify({ context_uri: contextUri, offset: { uri: trackUri } }),
       });
       return;
     }
-    // fallback: play on whatever device is active (Spotify app etc.)
     if (isConnected()) {
-      const res = await spotifyFetch('/me/player/play', {
+      await spotifyFetch('/me/player/play', {
         method: 'PUT',
         body: JSON.stringify({ context_uri: contextUri, offset: { uri: trackUri } }),
       });
       setTimeout(pollNowPlaying, 500);
     }
-    // and load the track into the embed so there's always visible/audible feedback
+    // embed as visible fallback so there's always audible feedback
     const trackId = trackUri.split(':')[2];
     if (trackId && musicFrame) {
       musicFrame.src = 'https://open.spotify.com/embed/track/' + trackId + '?utm_source=generator&theme=0';
@@ -2126,58 +2017,17 @@
     }
   }
 
-  async function playUri(uri, type) {
-    // whole collection: play from the top
-    if (sdkReady && spDeviceId) {
-      await spotifyFetch('/me/player/play?device_id=' + spDeviceId, {
-        method: 'PUT',
-        body: JSON.stringify({ context_uri: uri }),
-      });
-      return;
-    }
-    if (isConnected()) {
-      await spotifyFetch('/me/player/play', {
-        method: 'PUT',
-        body: JSON.stringify({ context_uri: uri }),
-      });
-      setTimeout(pollNowPlaying, 500);
-    }
-    const id = uri.split(':')[2];
-    if (id) {
-      spotifyUrl = 'https://open.spotify.com/' + type + '/' + id;
-      saveSpotify(spotifyUrl);
-      loadMusicFrame();
-    }
-    if (musicEq) musicEq.classList.remove('hidden');
+  libBack && libBack.addEventListener('click', () => showLibraryRoot());
+
+  /* ---------------- view transitions ---------------- */
+  function animateLib(dir) {
+    if (!libList) return;
+    libList.classList.remove('slide-in-right', 'slide-in-left');
+    void libList.offsetWidth; // restart animation
+    libList.classList.add(dir === 'forward' ? 'slide-in-right' : 'slide-in-left');
   }
 
-  function setLibMode(mode) {
-    libMode = mode;
-    if (libTabPlaylists) libTabPlaylists.classList.toggle('active', mode === 'playlists');
-    if (libTabAlbums) libTabAlbums.classList.toggle('active', mode === 'albums');
-    loadLibrary().then(() => animateLib(mode === 'playlists' ? 'back' : 'forward'));
-  }
-  libTabPlaylists && libTabPlaylists.addEventListener('click', () => setLibMode('playlists'));
-  libTabAlbums && libTabAlbums.addEventListener('click', () => setLibMode('albums'));
-
-  connectBtn && connectBtn.addEventListener('click', spotifyLogin);
-  clientIdSave && clientIdSave.addEventListener('click', () => {
-    const id = clientIdInput.value.trim();
-    if (!id) return;
-    spClientId = id;
-    saveClientId(id);
-    clientIdRow.classList.add('hidden');
-    if (musicHint) musicHint.textContent = 'Client ID saved — now hit Connect Spotify.';
-  });
-
-  function loadSpotify() {
-    try { return localStorage.getItem(SPOTIFY_KEY) || DEFAULT_SPOTIFY; } catch { return DEFAULT_SPOTIFY; }
-  }
-  function saveSpotify(url) {
-    try { localStorage.setItem(SPOTIFY_KEY, url); } catch { /* private mode */ }
-  }
-
-  // accept open.spotify.com URLs or spotify: URIs, return embed URL
+  /* ---------------- guest mode: embed + link loader ---------------- */
   function toEmbedUrl(url) {
     if (!url) return null;
     let m = url.match(/open\.spotify\.com\/(track|album|playlist|episode|show)\/([A-Za-z0-9]+)/);
@@ -2187,9 +2037,9 @@
   }
 
   function loadMusicFrame() {
-    const embed = toEmbedUrl(spotifyUrl);
+    const embed = toEmbedUrl(loadSpotify());
     if (embed && musicFrame && musicFrame.src !== embed) musicFrame.src = embed;
-    if (musicEq) musicEq.classList.toggle('hidden', !embed);
+    if (musicEq) musicEq.classList.toggle('hidden', !embed && !playingUri);
   }
 
   function openMusic() {
@@ -2198,7 +2048,7 @@
     musicPanel.classList.remove('hidden');
     requestAnimationFrame(() => requestAnimationFrame(() => musicPanel.classList.add('open')));
     renderMusicPanel();
-    if (musicInput) musicInput.value = spotifyUrl === DEFAULT_SPOTIFY ? '' : spotifyUrl;
+    if (musicInput) musicInput.value = loadSpotify() === DEFAULT_SPOTIFY ? '' : loadSpotify();
     if (clientIdInput && !clientIdInput.value) clientIdInput.value = spClientId || '';
   }
   function closeMusic() {
@@ -2217,9 +2067,7 @@
     const url = musicInput.value.trim();
     const embed = toEmbedUrl(url);
     if (!url) {
-      // empty -> restore default playlist
-      spotifyUrl = DEFAULT_SPOTIFY;
-      saveSpotify(spotifyUrl);
+      saveSpotify(DEFAULT_SPOTIFY);
       loadMusicFrame();
       return;
     }
@@ -2228,14 +2076,24 @@
       setTimeout(() => { musicInput.style.borderColor = ''; }, 900);
       return;
     }
-    spotifyUrl = url;
     saveSpotify(url);
     loadMusicFrame();
+  });
+
+  connectBtn && connectBtn.addEventListener('click', spotifyLogin);
+  clientIdSave && clientIdSave.addEventListener('click', () => {
+    const id = clientIdInput.value.trim();
+    if (!id) return;
+    spClientId = id;
+    saveClientId(id);
+    clientIdRow.classList.add('hidden');
+    if (musicHint) musicHint.textContent = 'Client ID saved — now hit Connect Spotify.';
   });
 
   loadMusicFrame(); // badge state on boot
   handleSpotifyCallback(); // pick up ?code= after OAuth redirect
   renderMusicPanel();
+
 
   /* ---------------- boot ---------------- */
   buildCarousel();
