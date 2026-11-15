@@ -16,31 +16,39 @@
 
   // migrate old theme/photo/scene ids to current scene ids
   const SCENE_MIGRATION = {
-    dawn: 'sunset', dusk: 'sunset', mist: 'rain',
+    dawn: 'fireside', dusk: 'fireside', mist: 'neonrain',
     'photo-study': 'catstudy', 'photo-cafe': 'wintercafe', 'photo-loft': 'cloudride',
-    library: 'catstudy', cloudsea: 'cloudride', bedroom: 'catstudy', library: 'catstudy',
+    library: 'catstudy', cloudsea: 'cloudride', bedroom: 'catstudy',
     pixstudy: 'catstudy', pixcafe: 'wintercafe', pixloft: 'cloudride',
+    rain: 'neonrain', sunset: 'fireside', midnight: 'nightcamp',
+    ocean: 'rainyroast', cafe: 'nightcafe', forest: 'daybreakcafe',
   };
 
   // carousel order + kind of each scene
   const SCENE_ORDER = [
-    { id: 'catstudy',   kind: 'photo',    name: 'Cat Study' },
-    { id: 'wintercafe', kind: 'photo',    name: 'Winter Café' },
-    { id: 'cloudride',  kind: 'photo',    name: 'Cloud Ride' },
-    { id: 'rain',       kind: 'particle', name: 'Rain' },
-    { id: 'sunset',     kind: 'particle', name: 'Sunset' },
-    { id: 'midnight',   kind: 'particle', name: 'Stars' },
-    { id: 'ocean',      kind: 'particle', name: 'Ocean' },
-    { id: 'cafe',       kind: 'particle', name: 'Glow' },
-    { id: 'forest',     kind: 'particle', name: 'Fireflies' },
-    { id: 'tajsunset',  kind: 'photo',    name: 'Taj Sunset' },
+    { id: 'catstudy',     kind: 'photo', name: 'Cat Study' },
+    { id: 'wintercafe',   kind: 'photo', name: 'Winter Café' },
+    { id: 'cloudride',    kind: 'photo', name: 'Cloud Ride' },
+    { id: 'nightcamp',    kind: 'photo', name: 'Night Camp' },
+    { id: 'neonrain',     kind: 'photo', name: 'Neon Rain' },
+    { id: 'fireside',     kind: 'photo', name: 'Fireside' },
+    { id: 'nightcafe',    kind: 'photo', name: 'Night Café' },
+    { id: 'daybreakcafe', kind: 'photo', name: 'Daybreak Café' },
+    { id: 'rainyroast',   kind: 'photo', name: 'Rainy Roast' },
+    { id: 'tajsunset',    kind: 'photo', name: 'Taj Sunset' },
   ];
 
   const PHOTO_SCENES = {
-    catstudy:   'bg/cat-study.jpg',
-    wintercafe: 'bg/winter-cafe.jpg',
-    cloudride:  'bg/cloud-ride.gif',
-    tajsunset:  'bg/taj-sunset.jpg',
+    catstudy:     'bg/cat-study.jpg',
+    wintercafe:   'bg/winter-cafe.jpg',
+    cloudride:    'bg/cloud-ride.gif',
+    nightcamp:    'bg/night-camp.jpg',
+    neonrain:     'bg/neon-rain.jpg',
+    fireside:     'bg/fireside.jpg',
+    nightcafe:    'bg/night-cafe.jpg',
+    daybreakcafe: 'bg/daybreak-cafe.jpg',
+    rainyroast:   'bg/rainy-roast.jpg',
+    tajsunset:    'bg/taj-sunset.jpg',
   };
 
   const PHASE_META = {
@@ -51,8 +59,8 @@
 
   const SCENE_COLORS = {
     catstudy: '#241a2e', wintercafe: '#1e2438', cloudride: '#3a2a5e',
-    rain: '#16222e', sunset: '#2a1a4a', midnight: '#05060f',
-    ocean: '#0f2027', cafe: '#241609', forest: '#0b3d2e',
+    nightcamp: '#1c1832', neonrain: '#101826', fireside: '#2a1c12',
+    nightcafe: '#181428', daybreakcafe: '#2c3226', rainyroast: '#1e1812',
     tajsunset: '#3a2440',
   };
 
